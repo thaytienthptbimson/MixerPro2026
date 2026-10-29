@@ -172,9 +172,14 @@
                                     <option value="1">Luôn xếp dọc</option>
                                 </select>
                             </div>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[13px] font-semibold text-slate-700">Giãn dòng</span>
+                                <input type="number" id="fmt-line" value="1.15" min="1" max="3" step="0.05" class="w-20 border border-slate-200 rounded-lg p-1.5 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                            </div>
                             <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-justify" checked class="w-4 h-4 mr-2 accent-indigo-600">Căn đều hai bên (justify)</label>
-                            <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-page" checked class="w-4 h-4 mr-2 accent-indigo-600">Khổ A4, lề 2 cm</label>
-                            <p class="text-[11px] text-slate-500 leading-relaxed">✓ Giãn dòng 1,15 · giãn đoạn đều · xóa dòng trống thừa<br>✓ Phương án tự chia cột thẳng hàng theo độ dài nội dung<br>✓ Câu hỏi không bị ngắt trang giữa chừng · "Mã đề" căn phải</p>
+                            <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-page" checked onchange="toggleFmtPanel()" class="w-4 h-4 mr-2 accent-indigo-600">Khổ A4 và chỉnh lề (cm)</label>
+                            <div class="grid grid-cols-4 gap-2"><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Trên</span><input type="number" id="fmt-m-top" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Dưới</span><input type="number" id="fmt-m-bottom" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Trái</span><input type="number" id="fmt-m-left" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Phải</span><input type="number" id="fmt-m-right" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div></div>
+                            <p class="text-[11px] text-slate-500 leading-relaxed">✓ Giãn dòng và lề tùy chỉnh · giãn đoạn đều · xóa dòng trống thừa<br>✓ Phương án tự chia cột thẳng hàng theo độ dài nội dung<br>✓ Câu hỏi không bị ngắt trang giữa chừng · "Mã đề" căn phải</p>
                         </div>
                     </div>
 
@@ -322,9 +327,11 @@ def _apply_page_setup(doc, fmt):
         s_.orientation = WD_ORIENT.PORTRAIT
         s_.page_width = Twips(11906)
         s_.page_height = Twips(16838)
-        s_.top_margin = Cm(2); s_.bottom_margin = Cm(2)
-        s_.left_margin = Cm(2); s_.right_margin = Cm(2)
-        s_.header_distance = Cm(1); s_.footer_distance = Cm(1)
+        mt = float(fmt.get("m_top", 2)); mb = float(fmt.get("m_bottom", 2))
+        ml = float(fmt.get("m_left", 2)); mr = float(fmt.get("m_right", 2))
+        s_.top_margin = Cm(mt); s_.bottom_margin = Cm(mb)
+        s_.left_margin = Cm(ml); s_.right_margin = Cm(mr)
+        s_.header_distance = Cm(min(1.0, mt / 2)); s_.footer_distance = Cm(min(1.0, mb / 2))
 
 def _apply_normal_style(doc, fmt):
     try:
@@ -1495,6 +1502,13 @@ def generate_shuffled(options_json):
         const panel = document.getElementById('fmt-panel');
         panel.classList.toggle('opacity-40', !on);
         panel.querySelectorAll('select, input').forEach(el => el.disabled = !on);
+        const pageOn = on && document.getElementById('fmt-page').checked;
+        ['top', 'bottom', 'left', 'right'].forEach(k => { document.getElementById('fmt-m-' + k).disabled = !pageOn; });
+    }
+
+    function fmtNum(id, def, min, max) {
+        const v = parseFloat(String(document.getElementById(id).value).replace(',', '.'));
+        return Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : def;
     }
 
     function getFmtOptions() {
@@ -1505,7 +1519,11 @@ def generate_shuffled(options_json):
             layout: document.getElementById('fmt-layout').value,
             justify: document.getElementById('fmt-justify').checked,
             page: document.getElementById('fmt-page').checked,
-            line: 1.15
+            line: fmtNum('fmt-line', 1.15, 1, 3),
+            m_top: fmtNum('fmt-m-top', 2, 0.5, 5),
+            m_bottom: fmtNum('fmt-m-bottom', 2, 0.5, 5),
+            m_left: fmtNum('fmt-m-left', 2, 0.5, 5),
+            m_right: fmtNum('fmt-m-right', 2, 0.5, 5)
         };
     }
 
