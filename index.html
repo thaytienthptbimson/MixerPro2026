@@ -180,6 +180,7 @@
                                 <span class="text-[13px] font-semibold text-slate-700">Cách dòng giữa các đáp án (pt)</span>
                                 <input type="number" id="fmt-gap" value="2" min="0" max="12" step="0.5" class="w-20 border border-slate-200 rounded-lg p-1.5 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
                             </div>
+                            <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-zero" onchange="toggleFmtPanel()" class="w-4 h-4 mr-2 accent-indigo-600">Spacing về 0 (trước/sau mọi đoạn)</label>
                             <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-justify" checked class="w-4 h-4 mr-2 accent-indigo-600">Căn đều hai bên (justify)</label>
                             <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-page" checked onchange="toggleFmtPanel()" class="w-4 h-4 mr-2 accent-indigo-600">Khổ A4 và chỉnh lề (cm)</label>
                             <div class="grid grid-cols-4 gap-2"><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Trên</span><input type="number" id="fmt-m-top" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Dưới</span><input type="number" id="fmt-m-bottom" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Trái</span><input type="number" id="fmt-m-left" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Phải</span><input type="number" id="fmt-m-right" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div></div>
@@ -273,7 +274,7 @@ from docx.oxml.ns import qn
 from docx.text.run import Run as _DocxRun
 from docx.oxml import OxmlElement
 from docx.shared import Pt, Cm, Twips
-from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_TAB_ALIGNMENT
 from docx.enum.section import WD_ORIENT
 from docx.enum.table import WD_TABLE_ALIGNMENT
 
@@ -320,6 +321,11 @@ def _fmt_runs(p, set_size=True):
 
 def _fmt_table(tbl):
     name = _FMT.get("font", "Times New Roman")
+    if _FMT.get("zero_spacing"):
+        from docx.text.paragraph import Paragraph
+        for pe in tbl.iter(qn('w:p')):
+            pf_ = Paragraph(pe, None).paragraph_format
+            pf_.space_before, pf_.space_after = Pt(0), Pt(0)
     for r in tbl.iter(qn('w:r')):
         _set_run_font(r, name, None)
 
@@ -401,12 +407,31 @@ def _math_w(el, em):
     if tag == 'rad': return sum(kids) + 0.6 * em
     return sum(kids)
 
+_RE_W = re.compile(r'(?:^|;)\s*width\s*:\s*([\d.]+)\s*(pt|px|in|cm|mm)?', re.I)
+
+def _obj_width(el):
+    for sub_ in el.iter():
+        tag = sub_.tag if isinstance(sub_.tag, str) else ''
+        if tag.endswith('}extent') and sub_.get('cx'):
+            try: return int(sub_.get('cx')) / 635.0
+            except ValueError: pass
+        if tag.endswith('}shape') and sub_.get('style'):
+            m = _RE_W.search(sub_.get('style'))
+            if m:
+                k = {'pt': 1.0, 'px': 0.75, 'in': 72.0, 'cm': 28.35, 'mm': 2.835}[(m.group(2) or 'pt').lower()]
+                return float(m.group(1)) * k * 20.0
+    return None
+
 def _seg_width(segments, size_pt):
     em = size_pt * 20.0
     total = 0.0
     for el, t, _s, _q, _f in segments:
         if el.tag == qn('w:r'):
-            if any(True for _ in el.iter(qn('w:drawing'), qn('w:pict'), qn('w:object'), qn('w:br'))): return None
+            if any(True for _ in el.iter(qn('w:br'))): return None
+            if any(True for _ in el.iter(qn('w:drawing'), qn('w:pict'), qn('w:object'))):
+                ow = _obj_width(el)
+                if ow is None: return None
+                total += ow
             total += _text_w(t, em)
         elif el.tag.endswith('}oMath') or el.tag.endswith('}oMathPara'):
             total += _math_w(el, em) * 1.15
@@ -455,13 +480,32 @@ def _fmt_para(p, kind, keep_next=False, tabs=None):
     else:
         pf.space_before, pf.space_after = Pt(0), Pt(4)
         if not keep_al: pf.alignment = just
+    if _FMT.get("zero_spacing"):
+        pf.space_before, pf.space_after = Pt(0), Pt(0)
     for pos in (tabs or []):
         pf.tab_stops.add_tab_stop(Twips(int(pos)))
+    if kind == "opt_cols":
+        ours = {int(x) for x in (tabs or [])}
+        seen = set()
+        st = p.style
+        while st is not None:
+            try:
+                for ts in st.paragraph_format.tab_stops:
+                    pos = int(ts.position.twips)
+                    if pos not in ours and pos not in seen:
+                        seen.add(pos)
+                        pf.tab_stops.add_tab_stop(Twips(pos), WD_TAB_ALIGNMENT.CLEAR)
+            except Exception:
+                pass
+            st = st.base_style
     ppr = p._p.get_or_add_pPr()
     for old in ppr.findall(qn('w:snapToGrid')): ppr.remove(old)
     sg = OxmlElement('w:snapToGrid'); sg.set(qn('w:val'), '0')
     spc = ppr.find(qn('w:spacing'))
-    if spc is not None: spc.addprevious(sg)
+    if spc is not None:
+        for a in ('beforeAutospacing', 'afterAutospacing', 'beforeLines', 'afterLines'):
+            spc.attrib.pop(qn('w:' + a), None)
+        spc.addprevious(sg)
     _fmt_runs(p, set_size=(kind != "head"))
 
 def _emit_options_fmt(doc, q, opts):
@@ -472,7 +516,7 @@ def _emit_options_fmt(doc, q, opts):
     else:
         cols = _choose_cols(opts, _USABLE, float(_FMT.get("size", 12)))
         if cols is None:
-            cols = {'inline_with_marker': 4, 'same_line': 4, 'two_lines': 2}.get(q.options_mode, 1)
+            cols = 1
     if n % cols != 0: cols = 1
     opts = [Option(o.letter_orig, _rstrip_segments(o.segments), o.is_correct, o.tf_ans, o.orig_segments) for o in opts]
     rows = [opts[i:i + cols] for i in range(0, n, cols)]
@@ -697,6 +741,15 @@ def _mark_option_correctness(segments):
     new_segments, tf_ans = _extract_tf_answer_start(segments)
     return new_segments, is_correct, tf_ans
 
+def _ext_math(spans, b):
+    moved = True
+    while moved:
+        moved = False
+        for s_, e_, el_, t_ in spans:
+            if s_ == b and e_ > s_ and el_.tag != qn('w:r'):
+                b = e_; moved = True; break
+    return b
+
 def _extract_inline_options(paragraph, options_text_start):
     spans, full_text = get_para_elements(paragraph)
     sub = full_text[options_text_start:]
@@ -705,7 +758,7 @@ def _extract_inline_options(paragraph, options_text_start):
     options = []
     for letter in "ABCD":
         abs_start = options_text_start + m.start(letter)
-        abs_end = options_text_start + m.end(letter)
+        abs_end = _ext_math(spans, options_text_start + m.end(letter))
         orig = _seg_slice(spans, abs_start, abs_end)
         segs, is_correct, tf_ans = _mark_option_correctness(orig)
         options.append(Option(letter, segs, is_correct, tf_ans, orig))
@@ -718,7 +771,7 @@ def _extract_pair(paragraph, la, lb):
     if not m: return None
     out = []
     for letter, key in ((la, "X"), (lb, "Y")):
-        orig = _seg_slice(spans, m.start(key), m.end(key))
+        orig = _seg_slice(spans, m.start(key), _ext_math(spans, m.end(key)))
         segs, is_correct, tf_ans = _mark_option_correctness(orig)
         out.append(Option(letter, segs, is_correct, tf_ans, orig))
     return out
@@ -1560,6 +1613,7 @@ def generate_shuffled(options_json):
         panel.classList.toggle('opacity-40', !on);
         panel.querySelectorAll('select, input').forEach(el => el.disabled = !on);
         const pageOn = on && document.getElementById('fmt-page').checked;
+        document.getElementById('fmt-gap').disabled = !on || document.getElementById('fmt-zero').checked;
         ['top', 'bottom', 'left', 'right'].forEach(k => { document.getElementById('fmt-m-' + k).disabled = !pageOn; });
     }
 
@@ -1578,6 +1632,7 @@ def generate_shuffled(options_json):
             page: document.getElementById('fmt-page').checked,
             line: fmtNum('fmt-line', 1.15, 1, 3),
             opt_gap: fmtNum('fmt-gap', 2, 0, 12),
+            zero_spacing: document.getElementById('fmt-zero').checked,
             m_top: fmtNum('fmt-m-top', 2, 0.5, 5),
             m_bottom: fmtNum('fmt-m-bottom', 2, 0.5, 5),
             m_left: fmtNum('fmt-m-left', 2, 0.5, 5),
