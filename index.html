@@ -168,8 +168,8 @@
                             <div class="flex items-center justify-between gap-2">
                                 <span class="text-[13px] font-semibold text-slate-700">Xếp phương án</span>
                                 <select id="fmt-layout" class="border border-slate-200 rounded-lg p-1.5 text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
-                                    <option value="auto" selected>Tự động (4 cột / 2 cột / dọc)</option>
-                                    <option value="1">Luôn xếp dọc</option>
+                                    <option value="auto" selected>Tự động: 4 → 2 → 1 đáp án/dòng</option>
+                                    <option value="1">Luôn xếp dọc (1 đáp án/dòng)</option>
                                 </select>
                             </div>
                             <div class="flex items-center justify-between gap-2">
@@ -183,7 +183,7 @@
                             <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-justify" checked class="w-4 h-4 mr-2 accent-indigo-600">Căn đều hai bên (justify)</label>
                             <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-page" checked onchange="toggleFmtPanel()" class="w-4 h-4 mr-2 accent-indigo-600">Khổ A4 và chỉnh lề (cm)</label>
                             <div class="grid grid-cols-4 gap-2"><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Trên</span><input type="number" id="fmt-m-top" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Dưới</span><input type="number" id="fmt-m-bottom" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Trái</span><input type="number" id="fmt-m-left" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Phải</span><input type="number" id="fmt-m-right" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div></div>
-                            <p class="text-[11px] text-slate-500 leading-relaxed">✓ Giãn dòng và lề tùy chỉnh · giãn đoạn đều · xóa dòng trống thừa<br>✓ Phương án tự chia cột thẳng hàng theo độ dài nội dung<br>✓ Câu hỏi không bị ngắt trang giữa chừng · "Mã đề" căn phải</p>
+                            <p class="text-[11px] text-slate-500 leading-relaxed">✓ Giãn dòng và lề tùy chỉnh · giãn đoạn đều · xóa dòng trống thừa<br>✓ Đáp án: 4 trên 1 dòng, không đủ chỗ thì 2, không đủ nữa thì mỗi đáp án 1 dòng (đo theo phông, cỡ chữ và lề)<br>✓ Câu hỏi không bị ngắt trang giữa chừng · "Mã đề" căn phải</p>
                         </div>
                     </div>
 
@@ -372,25 +372,54 @@ def _is_blank_spec(spec):
         if any(True for _ in el.iter(qn('w:drawing'), qn('w:pict'), qn('w:object'), qn('w:br'), qn('w:sym'))): return False
     return True
 
+import unicodedata
+
+_TNR = {}
+for _cs, _ws in (("abcdefghijklmnopqrstuvwxyz", (444,500,444,500,444,333,500,500,278,278,500,278,778,500,500,500,500,333,389,278,500,500,722,500,500,444)),
+                 ("ABCDEFGHIJKLMNOPQRSTUVWXYZ", (722,667,667,722,611,556,722,722,333,389,722,611,889,722,722,556,722,667,556,611,722,722,944,722,722,611))):
+    _TNR.update(zip(_cs, _ws))
+for _d in "0123456789": _TNR[_d] = 500
+_TNR.update({' ':250, '.':250, ',':250, ';':278, ':':278, '(':333, ')':333, '-':333, '+':564, '=':564, '<':564, '>':564, '/':278, '!':333, '?':444, '%':833, '&':778, '*':500, '^':469, '[':333, ']':333, '{':480, '}':480, '|':200})
+_FONT_K = {"Times New Roman": 1.0, "Cambria": 1.1, "Arial": 1.12, "Calibri": 0.97}
+
+def _char_w(ch):
+    w = _TNR.get(ch)
+    if w is not None: return w
+    if ch == "đ": return _TNR['d']
+    if ch == "Đ": return _TNR['D']
+    return _TNR.get(unicodedata.normalize('NFD', ch)[0], 500)
+
+def _text_w(text, em):
+    return sum(_char_w(c) for c in (text or "").replace("\u200b", "")) * em / 1000.0
+
+def _math_w(el, em):
+    tag = el.tag.split('}')[-1] if isinstance(el.tag, str) else ''
+    if tag == 't': return _text_w(el.text, em)
+    kids = [_math_w(c, em) for c in el if isinstance(c.tag, str)]
+    if tag == 'f': return max(kids) if kids else 0.0
+    if tag in ('sup', 'sub'): return 0.7 * sum(kids)
+    if tag == 'rad': return sum(kids) + 0.6 * em
+    return sum(kids)
+
 def _seg_width(segments, size_pt):
-    cw = size_pt * 10.0
+    em = size_pt * 20.0
     total = 0.0
     for el, t, _s, _q, _f in segments:
         if el.tag == qn('w:r'):
             if any(True for _ in el.iter(qn('w:drawing'), qn('w:pict'), qn('w:object'), qn('w:br'))): return None
-            total += len(t.replace("\u200b", "")) * cw
+            total += _text_w(t, em)
         elif el.tag.endswith('}oMath') or el.tag.endswith('}oMathPara'):
-            total += len("".join(el.itertext())) * cw * 1.15
+            total += _math_w(el, em) * 1.15
         else:
-            total += len("".join(el.itertext())) * cw
-    return total
+            total += _text_w("".join(el.itertext()), em)
+    return total * _FONT_K.get(_FMT.get("font", "Times New Roman"), 1.0) * 1.04
 
 def _choose_cols(opts, usable, size_pt):
-    ws = [_seg_width(o.segments, size_pt) for o in opts]
+    ws = [_seg_width(_rstrip_segments(o.segments), size_pt) for o in opts]
     if any(w is None for w in ws): return None
-    mx = max(ws) + 360
-    if mx <= usable / 4.0: return 4
-    if mx <= usable / 2.0: return 2
+    need = max(ws) + 280
+    for cols in (4, 2):
+        if need <= usable / cols: return cols
     return 1
 
 def _fmt_para(p, kind, keep_next=False, tabs=None):
