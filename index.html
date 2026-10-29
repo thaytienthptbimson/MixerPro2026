@@ -176,6 +176,10 @@
                                 <span class="text-[13px] font-semibold text-slate-700">Giãn dòng</span>
                                 <input type="number" id="fmt-line" value="1.15" min="1" max="3" step="0.05" class="w-20 border border-slate-200 rounded-lg p-1.5 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
                             </div>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[13px] font-semibold text-slate-700">Cách dòng giữa các đáp án (pt)</span>
+                                <input type="number" id="fmt-gap" value="2" min="0" max="12" step="0.5" class="w-20 border border-slate-200 rounded-lg p-1.5 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                            </div>
                             <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-justify" checked class="w-4 h-4 mr-2 accent-indigo-600">Căn đều hai bên (justify)</label>
                             <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-page" checked onchange="toggleFmtPanel()" class="w-4 h-4 mr-2 accent-indigo-600">Khổ A4 và chỉnh lề (cm)</label>
                             <div class="grid grid-cols-4 gap-2"><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Trên</span><input type="number" id="fmt-m-top" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Dưới</span><input type="number" id="fmt-m-bottom" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Trái</span><input type="number" id="fmt-m-left" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div><div><span class="block text-[11px] text-slate-500 text-center mb-0.5">Phải</span><input type="number" id="fmt-m-right" value="2" min="0.5" max="5" step="0.1" class="w-full border border-slate-200 rounded-lg p-1 text-center text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white disabled:opacity-40"></div></div>
@@ -414,16 +418,21 @@ def _fmt_para(p, kind, keep_next=False, tabs=None):
         pf.space_before, pf.space_after = Pt(6), Pt(2)
         pf.alignment = just
     elif kind == "opt_cols":
-        pf.space_before, pf.space_after = Pt(0), Pt(1)
+        pf.space_before, pf.space_after = Pt(0), Pt(float(_FMT.get("opt_gap", 2)))
         pf.alignment = A.LEFT
     elif kind == "opt_v":
-        pf.space_before, pf.space_after = Pt(0), Pt(1)
+        pf.space_before, pf.space_after = Pt(0), Pt(float(_FMT.get("opt_gap", 2)))
         pf.alignment = just
     else:
         pf.space_before, pf.space_after = Pt(0), Pt(4)
         if not keep_al: pf.alignment = just
     for pos in (tabs or []):
         pf.tab_stops.add_tab_stop(Twips(int(pos)))
+    ppr = p._p.get_or_add_pPr()
+    for old in ppr.findall(qn('w:snapToGrid')): ppr.remove(old)
+    sg = OxmlElement('w:snapToGrid'); sg.set(qn('w:val'), '0')
+    spc = ppr.find(qn('w:spacing'))
+    if spc is not None: spc.addprevious(sg)
     _fmt_runs(p, set_size=(kind != "head"))
 
 def _emit_options_fmt(doc, q, opts):
@@ -436,6 +445,7 @@ def _emit_options_fmt(doc, q, opts):
         if cols is None:
             cols = {'inline_with_marker': 4, 'same_line': 4, 'two_lines': 2}.get(q.options_mode, 1)
     if n % cols != 0: cols = 1
+    opts = [Option(o.letter_orig, _rstrip_segments(o.segments), o.is_correct, o.tf_ans, o.orig_segments) for o in opts]
     rows = [opts[i:i + cols] for i in range(0, n, cols)]
     k = 0
     for ri, row in enumerate(rows):
@@ -1083,6 +1093,33 @@ def shuffle_plan(parsed, parts, opts, rng=None):
             
     return global_header, blocks, option_perm, number_str_map, new_order
 
+def _rebuild_run_text(el, text):
+    for ch in list(el):
+        if ch.tag in (qn('w:t'), qn('w:tab')) or (ch.tag == qn('w:br') and ch.get(qn('w:type')) in (None, 'textWrapping')):
+            el.remove(ch)
+    for piece in re.split(r'(\t|\n)', (text or "").replace("\u200b", "")):
+        if piece == "": continue
+        if piece == "\t":
+            el.append(OxmlElement('w:tab'))
+        elif piece == "\n":
+            el.append(OxmlElement('w:br'))
+        else:
+            t = OxmlElement('w:t')
+            t.text = piece
+            t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+            el.append(t)
+
+def _rstrip_segments(segs):
+    segs = list(segs)
+    for i in range(len(segs) - 1, -1, -1):
+        el, t, ns, rq, rf = segs[i]
+        if el.tag != qn('w:r') or rq is not None: break
+        if any(True for _ in el.iter(qn('w:drawing'), qn('w:pict'), qn('w:object'))): break
+        nt = t.replace("\u200b", "").rstrip()
+        if nt != t: segs[i] = (el, nt, True, rq, rf)
+        if nt: break
+    return segs
+
 def _copy_seg_run(paragraph, seg, number_str_map=None, strip_underline=False, override_text=None):
     el, sliced_t, needs_slicing, ref_qid, ref_first = seg
     new_el = copy.deepcopy(el)
@@ -1102,17 +1139,8 @@ def _copy_seg_run(paragraph, seg, number_str_map=None, strip_underline=False, ov
                 out_text = ""
         
         if needs_slicing or ref_qid is not None:
-            t_nodes = new_el.findall(qn('w:t'))
-            if t_nodes:
-                t_nodes[0].text = out_text
-                for t_node in t_nodes[1:]:
-                    t_node.text = "" 
-            else:
-                if out_text and out_text != "\u200B":
-                    new_t = OxmlElement('w:t')
-                    new_t.text = out_text
-                    new_el.append(new_t)
-                    
+            _rebuild_run_text(new_el, out_text)
+
     paragraph._p.append(new_el)
 
 def _emit_table(doc, spec):
@@ -1520,6 +1548,7 @@ def generate_shuffled(options_json):
             justify: document.getElementById('fmt-justify').checked,
             page: document.getElementById('fmt-page').checked,
             line: fmtNum('fmt-line', 1.15, 1, 3),
+            opt_gap: fmtNum('fmt-gap', 2, 0, 12),
             m_top: fmtNum('fmt-m-top', 2, 0.5, 5),
             m_bottom: fmtNum('fmt-m-bottom', 2, 0.5, 5),
             m_left: fmtNum('fmt-m-left', 2, 0.5, 5),
