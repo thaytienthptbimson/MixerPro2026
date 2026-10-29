@@ -319,12 +319,20 @@ def _fmt_runs(p, set_size=True):
     for r in p._p.findall(qn('w:r')):
         _set_run_font(r, name, hp)
 
+def _set_para_line_spacing(pf, line_val):
+    from docx.enum.text import WD_LINE_SPACING
+    pf.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+    pf.line_spacing = float(line_val)
+
 def _fmt_table(tbl):
     name = _FMT.get("font", "Times New Roman")
-    if _FMT.get("zero_spacing"):
-        from docx.text.paragraph import Paragraph
-        for pe in tbl.iter(qn('w:p')):
-            pf_ = Paragraph(pe, None).paragraph_format
+    line_val = float(_FMT.get("line", 1.15))
+    zero_sp = _FMT.get("zero_spacing")
+    from docx.text.paragraph import Paragraph
+    for pe in tbl.iter(qn('w:p')):
+        pf_ = Paragraph(pe, None).paragraph_format
+        _set_para_line_spacing(pf_, line_val)
+        if zero_sp:
             pf_.space_before, pf_.space_after = Pt(0), Pt(0)
     for r in tbl.iter(qn('w:r')):
         _set_run_font(r, name, None)
@@ -349,6 +357,10 @@ def _apply_normal_style(doc, fmt):
         st = doc.styles['Normal']
         st.font.name = name
         st.font.size = Pt(float(fmt.get("size", 12)))
+        _set_para_line_spacing(st.paragraph_format, float(fmt.get("line", 1.15)))
+        if fmt.get("zero_spacing"):
+            st.paragraph_format.space_before = Pt(0)
+            st.paragraph_format.space_after = Pt(0)
         rf = st.element.rPr.find(qn('w:rFonts'))
         if rf is not None:
             for a in ('asciiTheme', 'hAnsiTheme', 'eastAsiaTheme', 'cstheme'):
@@ -456,7 +468,7 @@ def _fmt_para(p, kind, keep_next=False, tabs=None):
         pf.left_indent = Twips(0)
         pf.first_line_indent = Twips(0)
         pf.tab_stops.clear_all()
-    pf.line_spacing = float(_FMT.get("line", 1.15))
+    _set_para_line_spacing(pf, float(_FMT.get("line", 1.15)))
     pf.widow_control = True
     pf.keep_together = True
     pf.keep_with_next = bool(keep_next)
@@ -1375,7 +1387,26 @@ def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map,
         last = sects[-1]
         body.remove(last)
         body.append(last)
+    if _FMT:
+        _apply_line_spacing_all(doc, _FMT)
     doc.save(out_path)
+
+def _apply_line_spacing_all(doc, fmt):
+    if not fmt: return
+    line_val = float(fmt.get("line", 1.15))
+    zero_sp = fmt.get("zero_spacing")
+    from docx.text.paragraph import Paragraph
+    for pe in doc.element.body.iter(qn('w:p')):
+        pf = Paragraph(pe, None).paragraph_format
+        _set_para_line_spacing(pf, line_val)
+        if zero_sp:
+            pf.space_before, pf.space_after = Pt(0), Pt(0)
+    for section in doc.sections:
+        for hf in (section.header, section.footer):
+            if hf is not None and not hf.is_linked_to_previous:
+                for pe in hf._element.iter(qn('w:p')):
+                    pf = Paragraph(pe, None).paragraph_format
+                    _set_para_line_spacing(pf, line_val)
 
 def compute_answer_key(blocks, option_perm, number_str_map, qmap, parts):
     result = []
@@ -1457,6 +1488,7 @@ def build_answer_key_docx(all_keys, out_path, fmt=None):
                 for c in row.cells:
                     for pp in c.paragraphs:
                         pp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _apply_line_spacing_all(doc, fmt)
     doc.save(out_path)
 </script>
 
