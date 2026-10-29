@@ -137,6 +137,47 @@
                         </div>
                     </div>
                     
+                    <div class="mt-4 p-4 rounded-xl border border-indigo-100 bg-gradient-to-br from-indigo-50/70 to-cyan-50/70">
+                        <label class="flex items-center justify-between cursor-pointer group">
+                            <span class="text-sm font-bold text-indigo-900 group-hover:text-indigo-600 transition-colors">Căn chỉnh văn bản chuẩn khoa học</span>
+                            <div class="relative ml-3">
+                                <input type="checkbox" id="fmt-enable" checked onchange="toggleFmtPanel()" class="sr-only toggle-checkbox">
+                                <div class="block bg-slate-300 w-10 h-6 rounded-full toggle-label transition-colors duration-300"></div>
+                                <div class="dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform duration-300 shadow-sm toggle-dot"></div>
+                            </div>
+                        </label>
+                        <div id="fmt-panel" class="mt-3 space-y-2.5 transition-opacity">
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[13px] font-semibold text-slate-700">Phông chữ</span>
+                                <select id="fmt-font" class="border border-slate-200 rounded-lg p-1.5 text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                    <option value="Times New Roman" selected>Times New Roman</option>
+                                    <option value="Cambria">Cambria</option>
+                                    <option value="Arial">Arial</option>
+                                    <option value="Calibri">Calibri</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[13px] font-semibold text-slate-700">Cỡ chữ</span>
+                                <select id="fmt-size" class="border border-slate-200 rounded-lg p-1.5 text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                    <option value="11">11 pt</option>
+                                    <option value="12" selected>12 pt (chuẩn đề thi)</option>
+                                    <option value="13">13 pt</option>
+                                    <option value="14">14 pt</option>
+                                </select>
+                            </div>
+                            <div class="flex items-center justify-between gap-2">
+                                <span class="text-[13px] font-semibold text-slate-700">Xếp phương án</span>
+                                <select id="fmt-layout" class="border border-slate-200 rounded-lg p-1.5 text-[13px] font-semibold text-indigo-700 outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+                                    <option value="auto" selected>Tự động (4 cột / 2 cột / dọc)</option>
+                                    <option value="1">Luôn xếp dọc</option>
+                                </select>
+                            </div>
+                            <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-justify" checked class="w-4 h-4 mr-2 accent-indigo-600">Căn đều hai bên (justify)</label>
+                            <label class="flex items-center text-[13px] font-semibold text-slate-700 cursor-pointer"><input type="checkbox" id="fmt-page" checked class="w-4 h-4 mr-2 accent-indigo-600">Khổ A4, lề 2 cm</label>
+                            <p class="text-[11px] text-slate-500 leading-relaxed">✓ Giãn dòng 1,15 · giãn đoạn đều · xóa dòng trống thừa<br>✓ Phương án tự chia cột thẳng hàng theo độ dài nội dung<br>✓ Câu hỏi không bị ngắt trang giữa chừng · "Mã đề" căn phải</p>
+                        </div>
+                    </div>
+
                     <button id="btn-shuffle" onclick="shuffleAndExport()" class="mt-6 w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-indigo-200 hover:shadow-indigo-300 hover:from-blue-700 hover:to-indigo-700 transform hover:-translate-y-0.5 transition-all duration-200 flex justify-center items-center text-sm uppercase tracking-wider">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                         Tạo Đề & Tải Xuống
@@ -222,6 +263,200 @@ from docx import Document
 from docx.oxml.ns import qn
 from docx.text.run import Run as _DocxRun
 from docx.oxml import OxmlElement
+from docx.shared import Pt, Cm, Twips
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.section import WD_ORIENT
+from docx.enum.table import WD_TABLE_ALIGNMENT
+
+# ===== CĂN CHỈNH & ĐỊNH DẠNG CHUẨN CHO ĐỀ ĐẢO =====
+_FMT = {}
+_USABLE = 9638
+_HEAD_IDS = set()
+_RPR_AFTER_SZ = tuple(qn('w:' + t) for t in ('highlight','u','effect','bdr','shd','fitText','vertAlign','rtl','cs','em','lang','eastAsianLayout','specVanish','oMath'))
+
+def _put_val(rpr, tag, val):
+    el = rpr.find(qn(tag))
+    if el is None:
+        el = OxmlElement(tag)
+        later = _RPR_AFTER_SZ + ((qn('w:szCs'),) if tag == 'w:sz' else ())
+        anchor = next((c for c in rpr if c.tag in later), None)
+        if anchor is not None: anchor.addprevious(el)
+        else: rpr.append(el)
+    el.set(qn('w:val'), str(val))
+
+def _set_run_font(r, name, half_pts=None):
+    rpr = r.find(qn('w:rPr'))
+    if rpr is None:
+        rpr = OxmlElement('w:rPr')
+        r.insert(0, rpr)
+    rf = rpr.find(qn('w:rFonts'))
+    if rf is None:
+        rf = OxmlElement('w:rFonts')
+        st = rpr.find(qn('w:rStyle'))
+        if st is not None: st.addnext(rf)
+        else: rpr.insert(0, rf)
+    for a in ('asciiTheme', 'hAnsiTheme', 'eastAsiaTheme', 'cstheme'):
+        rf.attrib.pop(qn('w:' + a), None)
+    for a in ('ascii', 'hAnsi', 'eastAsia', 'cs'):
+        rf.set(qn('w:' + a), name)
+    if half_pts:
+        _put_val(rpr, 'w:sz', half_pts)
+        _put_val(rpr, 'w:szCs', half_pts)
+
+def _fmt_runs(p, set_size=True):
+    name = _FMT.get("font", "Times New Roman")
+    hp = int(round(float(_FMT.get("size", 12)) * 2)) if set_size else None
+    for r in p._p.findall(qn('w:r')):
+        _set_run_font(r, name, hp)
+
+def _fmt_table(tbl):
+    name = _FMT.get("font", "Times New Roman")
+    for r in tbl.iter(qn('w:r')):
+        _set_run_font(r, name, None)
+
+def _apply_page_setup(doc, fmt):
+    if not fmt.get("page", True): return
+    for s_ in doc.sections:
+        cols = s_._sectPr.find(qn('w:cols'))
+        if cols is not None and int(cols.get(qn('w:num')) or 1) > 1: continue
+        s_.orientation = WD_ORIENT.PORTRAIT
+        s_.page_width = Twips(11906)
+        s_.page_height = Twips(16838)
+        s_.top_margin = Cm(2); s_.bottom_margin = Cm(2)
+        s_.left_margin = Cm(2); s_.right_margin = Cm(2)
+        s_.header_distance = Cm(1); s_.footer_distance = Cm(1)
+
+def _apply_normal_style(doc, fmt):
+    try:
+        name = fmt.get("font", "Times New Roman")
+        st = doc.styles['Normal']
+        st.font.name = name
+        st.font.size = Pt(float(fmt.get("size", 12)))
+        rf = st.element.rPr.find(qn('w:rFonts'))
+        if rf is not None:
+            for a in ('asciiTheme', 'hAnsiTheme', 'eastAsiaTheme', 'cstheme'):
+                rf.attrib.pop(qn('w:' + a), None)
+            for a in ('eastAsia', 'cs'):
+                rf.set(qn('w:' + a), name)
+    except Exception:
+        pass
+
+def _usable_width(doc):
+    try:
+        s_ = doc.sections[-1]
+        total = int(s_.page_width.twips - s_.left_margin.twips - s_.right_margin.twips)
+        cols = s_._sectPr.find(qn('w:cols'))
+        if cols is not None:
+            n = int(cols.get(qn('w:num')) or 1)
+            if n > 1:
+                gap = int(cols.get(qn('w:space')) or 720)
+                total = int((total - gap * (n - 1)) / n)
+        return max(total, 3000)
+    except Exception:
+        return 9638
+
+def _is_blank_spec(spec):
+    if spec.table is not None or _spec_has_content(spec): return False
+    for el, t, _s, _q, _f in spec.segments:
+        if any(True for _ in el.iter(qn('w:drawing'), qn('w:pict'), qn('w:object'), qn('w:br'), qn('w:sym'))): return False
+    return True
+
+def _seg_width(segments, size_pt):
+    cw = size_pt * 10.0
+    total = 0.0
+    for el, t, _s, _q, _f in segments:
+        if el.tag == qn('w:r'):
+            if any(True for _ in el.iter(qn('w:drawing'), qn('w:pict'), qn('w:object'), qn('w:br'))): return None
+            total += len(t.replace("\u200b", "")) * cw
+        elif el.tag.endswith('}oMath') or el.tag.endswith('}oMathPara'):
+            total += len("".join(el.itertext())) * cw * 1.15
+        else:
+            total += len("".join(el.itertext())) * cw
+    return total
+
+def _choose_cols(opts, usable, size_pt):
+    ws = [_seg_width(o.segments, size_pt) for o in opts]
+    if any(w is None for w in ws): return None
+    mx = max(ws) + 360
+    if mx <= usable / 4.0: return 4
+    if mx <= usable / 2.0: return 2
+    return 1
+
+def _fmt_para(p, kind, keep_next=False, tabs=None):
+    pf = p.paragraph_format
+    A = WD_ALIGN_PARAGRAPH
+    just = A.JUSTIFY if _FMT.get("justify", True) else A.LEFT
+    keep_al = pf.alignment in (A.CENTER, A.RIGHT)
+    if kind != "head":
+        pf.left_indent = Twips(0)
+        pf.first_line_indent = Twips(0)
+        pf.tab_stops.clear_all()
+    pf.line_spacing = float(_FMT.get("line", 1.15))
+    pf.widow_control = True
+    pf.keep_together = True
+    pf.keep_with_next = bool(keep_next)
+    if kind == "head":
+        pf.space_before, pf.space_after = Pt(0), Pt(2)
+    elif kind == "code":
+        pf.space_before, pf.space_after = Pt(0), Pt(6)
+        pf.alignment = A.RIGHT
+    elif kind == "part":
+        pf.space_before, pf.space_after = Pt(10), Pt(4)
+        if not keep_al: pf.alignment = A.LEFT
+    elif kind == "stem":
+        pf.space_before, pf.space_after = Pt(6), Pt(2)
+        pf.alignment = just
+    elif kind == "opt_cols":
+        pf.space_before, pf.space_after = Pt(0), Pt(1)
+        pf.alignment = A.LEFT
+    elif kind == "opt_v":
+        pf.space_before, pf.space_after = Pt(0), Pt(1)
+        pf.alignment = just
+    else:
+        pf.space_before, pf.space_after = Pt(0), Pt(4)
+        if not keep_al: pf.alignment = just
+    for pos in (tabs or []):
+        pf.tab_stops.add_tab_stop(Twips(int(pos)))
+    _fmt_runs(p, set_size=(kind != "head"))
+
+def _emit_options_fmt(doc, q, opts):
+    n = len(opts)
+    stmt = opts[0].letter_orig in "abcd"
+    if stmt or _FMT.get("layout", "auto") != "auto":
+        cols = 1
+    else:
+        cols = _choose_cols(opts, _USABLE, float(_FMT.get("size", 12)))
+        if cols is None:
+            cols = {'inline_with_marker': 4, 'same_line': 4, 'two_lines': 2}.get(q.options_mode, 1)
+    if n % cols != 0: cols = 1
+    rows = [opts[i:i + cols] for i in range(0, n, cols)]
+    k = 0
+    for ri, row in enumerate(rows):
+        p = doc.add_paragraph()
+        for ci, opt in enumerate(row):
+            if ci > 0: p.add_run("\t")
+            _emit_option_run(p, opt, _lab(opt, k), True)
+            k += 1
+        last = (ri == len(rows) - 1)
+        if cols > 1:
+            _fmt_para(p, "opt_cols", keep_next=not last, tabs=[_USABLE * c / cols for c in range(1, cols)])
+        else:
+            _fmt_para(p, "opt_v", keep_next=not last)
+
+def _render_question_fmt(doc, q, opts, number_str_map):
+    stems = q.stem_paragraphs
+    for i, sp in enumerate(stems):
+        if sp.table is not None:
+            _emit_table(doc, sp)
+            continue
+        if _is_blank_spec(sp): continue
+        p = doc.add_paragraph()
+        copy_ppr(p, sp.source_paragraph)
+        for seg in sp.segments:
+            _copy_seg_run(p, seg, number_str_map)
+        _fmt_para(p, "stem", keep_next=(bool(opts) or i < len(stems) - 1))
+    if opts:
+        _emit_options_fmt(doc, q, opts)
 
 QUESTION_RE = re.compile(r'^\s*(?:Câu|Question)\s+(\d+)\s*[\.:]', re.IGNORECASE)
 PART_HEAD_RE = re.compile(r'^\s*PHẦN\s+(?:[IVX]+|\d+)\b', re.IGNORECASE)
@@ -876,6 +1111,7 @@ def _copy_seg_run(paragraph, seg, number_str_map=None, strip_underline=False, ov
 def _emit_table(doc, spec):
     body = doc.element.body
     new_tbl = copy.deepcopy(spec.table)
+    if _FMT: _fmt_table(new_tbl)
     sect = body.find(qn('w:sectPr'))
     if sect is not None: sect.addprevious(new_tbl)
     else: body.append(new_tbl)
@@ -883,9 +1119,11 @@ def _emit_table(doc, spec):
 def _lab(opt, i):
     return ("abcd" if opt.letter_orig in "abcd" else "ABCD")[i]
 
-def _emit_plain_paragraph(doc, spec, number_str_map=None):
+def _emit_plain_paragraph(doc, spec, number_str_map=None, kind="plain"):
     if spec.table is not None:
         return _emit_table(doc, spec)
+    if _FMT and id(spec) not in _HEAD_IDS and _is_blank_spec(spec):
+        return None
     p = doc.add_paragraph()
     copy_ppr(p, spec.source_paragraph)
     
@@ -906,6 +1144,11 @@ def _emit_plain_paragraph(doc, spec, number_str_map=None):
                 ovr = str(sorted_refs[ref_idx])
                 ref_idx += 1
         _copy_seg_run(p, seg, number_str_map, override_text=ovr)
+    if _FMT:
+        if id(spec) in _HEAD_IDS: k = "head"
+        elif _is_part_head(_spec_text(spec)): k = "part"
+        else: k = kind
+        _fmt_para(p, k, keep_next=(k == "part" or (k == "plain" and _spec_is_bold(spec))))
     return p
 
 def _relabel_option_segments(segments, new_letter):
@@ -926,8 +1169,15 @@ def _emit_option_run(paragraph, opt, new_letter, is_first_of_opt):
     for seg in segments:
         _copy_seg_run(paragraph, seg, None, strip_underline=True)
 
-def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map, out_path, header_line=None):
+def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map, out_path, header_line=None, fmt=None):
+    global _FMT, _USABLE, _HEAD_IDS
+    _FMT = dict(fmt) if fmt else {}
+    _HEAD_IDS = {id(sp_) for sp_ in global_header} if _FMT else set()
     doc = Document(parsed["doc_path"])
+    if _FMT:
+        _apply_page_setup(doc, _FMT)
+        _apply_normal_style(doc, _FMT)
+        _USABLE = _usable_width(doc)
     body = doc.element.body
     sect_prs = body.findall(qn('w:sectPr'))
     for child in list(body):
@@ -937,6 +1187,7 @@ def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map,
         p = doc.add_paragraph()
         r = p.add_run(header_line)
         r.bold = True
+        if _FMT: _fmt_para(p, "code")
         
     qmap = {q.id: q for q in parsed["questions"]}
     for spec in global_header: 
@@ -949,6 +1200,11 @@ def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map,
         for old_q_id in block["qids"]:
             q = qmap[old_q_id]
             opts = option_perm[old_q_id]
+            if _FMT:
+                _render_question_fmt(doc, q, opts, number_str_map)
+                for spec in block["specs_internal"].get(old_q_id, []):
+                    _emit_plain_paragraph(doc, spec, number_str_map)
+                continue
             
             if q.options_mode == 'inline_with_marker':
                 p = doc.add_paragraph()
@@ -1052,8 +1308,9 @@ def _strip_ans_prefix(segments):
         pos += l
     return out
 
-def build_answer_key_docx(all_keys, out_path):
+def build_answer_key_docx(all_keys, out_path, fmt=None):
     doc = Document()
+    if fmt: _apply_normal_style(doc, fmt)
     doc.add_heading("BẢNG ĐÁP ÁN", level=1)
     for ma_de_label, keys in all_keys:
         doc.add_heading(ma_de_label, level=2)
@@ -1076,6 +1333,13 @@ def build_answer_key_docx(all_keys, out_path):
                 else:
                     shown = CIRCLED.get(ans_obj, ans_obj) if ans_obj else "?"
                     cell.text = f"{num_str}. {shown}"
+    if fmt:
+        for tbl in doc.tables:
+            tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+            for row in tbl.rows:
+                for c in row.cells:
+                    for pp in c.paragraphs:
+                        pp.alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.save(out_path)
 </script>
 
@@ -1104,6 +1368,7 @@ def generate_shuffled(options_json):
     start_code = opts.pop('start_code', 101)
     insert_header = opts.pop('insert_header', True)
     shuffle_parts_globally = opts.pop('shuffle_parts', False)
+    fmt = opts.pop('fmt', None)
     
     py_opts = {"shuffle_parts": shuffle_parts_globally}
     for k, v in opts.items():
@@ -1117,7 +1382,7 @@ def generate_shuffled(options_json):
         global_header, blocks, option_perm, number_str_map, new_order = engine.shuffle_plan(G_PARSED, G_PARTS, py_opts, rng=random)
         header_line = f"Mã đề: {ma_de}" if insert_header else None
         out_path = f"/MaDe_{ma_de}.docx"
-        engine.render_exam_docx(G_PARSED, global_header, blocks, option_perm, number_str_map, out_path, header_line=header_line)
+        engine.render_exam_docx(G_PARSED, global_header, blocks, option_perm, number_str_map, out_path, header_line=header_line, fmt=fmt)
         
         qmap = {q.id: q for q in G_PARSED["questions"]}
         for b in blocks:
@@ -1129,7 +1394,7 @@ def generate_shuffled(options_json):
             out_files[f"MaDe_{ma_de}.docx"] = base64.b64encode(f.read()).decode('utf-8')
             
     key_path = "/BangDapAn.docx"
-    engine.build_answer_key_docx(all_keys, key_path)
+    engine.build_answer_key_docx(all_keys, key_path, fmt=fmt)
     with open(key_path, 'rb') as f:
         out_files["BangDapAn.docx"] = base64.b64encode(f.read()).decode('utf-8')
         
@@ -1223,6 +1488,25 @@ def generate_shuffled(options_json):
         document.querySelectorAll(`[id^="opt-seg-${index}-"]`).forEach(el => el.disabled = !on);
         const row = document.getElementById(`group-row-${index}`);
         if (row) row.classList.toggle('opacity-40', !on);
+    }
+
+    function toggleFmtPanel() {
+        const on = document.getElementById('fmt-enable').checked;
+        const panel = document.getElementById('fmt-panel');
+        panel.classList.toggle('opacity-40', !on);
+        panel.querySelectorAll('select, input').forEach(el => el.disabled = !on);
+    }
+
+    function getFmtOptions() {
+        if (!document.getElementById('fmt-enable').checked) return null;
+        return {
+            font: document.getElementById('fmt-font').value,
+            size: parseFloat(document.getElementById('fmt-size').value),
+            layout: document.getElementById('fmt-layout').value,
+            justify: document.getElementById('fmt-justify').checked,
+            page: document.getElementById('fmt-page').checked,
+            line: 1.15
+        };
     }
 
     function escapeHtml(str) {
@@ -1451,7 +1735,8 @@ def generate_shuffled(options_json):
                 num_ma_de: numMade,
                 start_code: startCode,
                 insert_header: document.getElementById('insert-header').checked,
-                shuffle_parts: document.getElementById('cb-shuffle-parts').checked
+                shuffle_parts: document.getElementById('cb-shuffle-parts').checked,
+                fmt: getFmtOptions()
             };
             
             window.currentParts.forEach((part, idx) => {
