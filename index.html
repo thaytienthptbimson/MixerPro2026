@@ -17,6 +17,12 @@
         .toggle-checkbox:checked + .toggle-label + .toggle-dot { transform: translateX(100%); }
         #cb-shuffle-parts:checked + .toggle-label + .toggle-dot { transform: translateX(100%); }
         .ministry-preview { font-family: "Times New Roman", Times, serif; }
+        .dot-leader {
+            border-bottom: 1px dotted #334155;
+            flex-grow: 1;
+            height: 0.85em;
+            margin: 0 4px;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen">
@@ -140,10 +146,16 @@
                             </div>
 
                             <div class="pt-2 border-t border-slate-100 space-y-2">
-                                <label class="flex items-center space-x-2 cursor-pointer">
-                                    <input type="checkbox" id="hdr-student-info" checked class="rounded text-indigo-600 focus:ring-indigo-500" onchange="updateHeaderPreview()">
-                                    <span class="text-xs text-slate-700 font-medium">Chèn dòng "Họ, tên thí sinh" & "Số báo danh" kèm khung Mã đề</span>
-                                </label>
+                                <div class="flex items-center justify-between gap-2">
+                                    <label class="flex items-center space-x-2 cursor-pointer">
+                                        <input type="checkbox" id="hdr-student-info" checked class="rounded text-indigo-600 focus:ring-indigo-500" onchange="updateHeaderPreview()">
+                                        <span class="text-xs text-slate-700 font-medium">Chèn "Họ, tên thí sinh", "SBD" & khung Mã đề gọn</span>
+                                    </label>
+                                    <select id="hdr-student-style" class="border border-slate-300 rounded px-2 py-1 text-[11px] font-medium text-slate-700 focus:ring-indigo-500" onchange="updateHeaderPreview()">
+                                        <option value="1line" selected>Gọn trên 1 dòng</option>
+                                        <option value="2line">Tách 2 dòng gọn</option>
+                                    </select>
+                                </div>
                                 <label class="flex items-center space-x-2 cursor-pointer">
                                     <input type="checkbox" id="hdr-replace-old" checked class="rounded text-indigo-600 focus:ring-indigo-500">
                                     <span class="text-xs text-slate-700 font-medium">Bỏ tiêu đề cũ ở đầu file gốc (tránh lặp tiêu đề)</span>
@@ -159,7 +171,7 @@
                         <div id="simple-header-panel" class="p-3 bg-slate-50 hidden border-t border-slate-100">
                             <label class="flex items-center space-x-3 cursor-pointer">
                                 <input type="checkbox" id="insert-header" checked class="rounded text-indigo-600 focus:ring-indigo-500">
-                                <span class="text-xs font-medium text-slate-700">Chỉ chèn dòng "Mã đề: ###" đơn giản ở đầu trang</span>
+                                <span class="text-xs font-medium text-slate-700">Chỉ chèn khung "Mã đề: ###" nhỏ gọn ở đầu trang</span>
                             </label>
                         </div>
                     </div>
@@ -262,7 +274,7 @@
                             <div>
                                 <div class="flex items-center justify-between mb-1">
                                     <label class="text-xs font-medium text-slate-600">Căn lề trang giấy A4 (cm):</label>
-                                    <button type="button" onclick="applyStandardMargins()" class="text-[11px] text-emerald-700 hover:underline font-semibold">Đặt chuẩn Bộ (2.0 - 1.5 - 2.0 - 1.5)</button>
+                                    <button type="button" onclick="applyStandardMargins()" class="text-[11px] text-emerald-700 hover:underline font-semibold">Đặt chuẩn Bộ (1.5 - 1.5 - 2.0 - 1.5)</button>
                                 </div>
                                 <div class="grid grid-cols-4 gap-2 text-center">
                                     <div>
@@ -284,10 +296,14 @@
                                 </div>
                             </div>
 
-                            <div class="pt-2 border-t border-slate-100 flex flex-wrap gap-3">
+                            <div class="pt-2 border-t border-slate-100 space-y-1.5">
                                 <label class="flex items-center space-x-2 cursor-pointer">
                                     <input type="checkbox" id="fmt-bold-qlabel" checked class="rounded text-emerald-600 focus:ring-emerald-500">
-                                    <span class="text-xs text-slate-700 font-medium">In đậm nhãn "Question X." và các chữ cái "A., B., C., D."</span>
+                                    <span class="text-xs text-slate-700 font-medium">Chỉ in đậm nhãn "Question X." và "A., B., C., D."</span>
+                                </label>
+                                <label class="flex items-center space-x-2 cursor-pointer">
+                                    <input type="checkbox" id="fmt-clean-opt-bold" checked class="rounded text-emerald-600 focus:ring-emerald-500">
+                                    <span class="text-xs text-slate-700 font-medium">Chuẩn hóa nội dung đáp án (Xóa in đậm lộn xộn trong nội dung A, B, C, D)</span>
                                 </label>
                             </div>
                         </div>
@@ -307,32 +323,40 @@
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center">
                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
-                            Xem Trước Mẫu Tiêu Đề Chuẩn Bộ GD&ĐT Trên Trang Word
+                            Xem Trước Mẫu Tiêu Đề Chuẩn Bộ GD&ĐT (Gọn Trong Lề Văn Bản)
                         </h3>
-                        <span class="text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium">Times New Roman • Chuẩn A4</span>
+                        <span class="text-[11px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-medium">Khớp 100% lề A4</span>
                     </div>
-                    <div class="border border-slate-300 bg-white p-4 rounded-lg shadow-inner ministry-preview text-slate-900">
+                    <div class="border border-slate-300 bg-white px-4 py-3 rounded-lg shadow-inner ministry-preview text-slate-900">
                         <div class="grid grid-cols-12 gap-2 text-center items-start">
                             <div class="col-span-5 flex flex-col items-center">
-                                <div id="prv-governing" class="text-xs uppercase leading-tight">SỞ GD&ĐT THANH HÓA</div>
-                                <div id="prv-school" class="text-xs font-bold uppercase leading-tight underline underline-offset-4">TRƯỜNG THPT BỈM SƠN</div>
-                                <div id="prv-exam-type" class="text-xs font-bold uppercase mt-1.5 leading-tight">ĐỀ CHÍNH THỨC</div>
-                                <div id="prv-page-note" class="text-[11px] italic leading-tight">(Đề thi có 04 trang)</div>
+                                <div id="prv-governing" class="text-[11px] uppercase leading-snug">SỞ GD&ĐT THANH HÓA</div>
+                                <div id="prv-school" class="text-[11px] font-bold uppercase leading-snug underline underline-offset-2">TRƯỜNG THPT BỈM SƠN</div>
+                                <div id="prv-exam-type" class="text-[11px] font-bold uppercase mt-1 leading-snug">ĐỀ CHÍNH THỨC</div>
+                                <div id="prv-page-note" class="text-[10.5px] italic leading-snug">(Đề thi có 04 trang)</div>
                             </div>
                             <div class="col-span-7 flex flex-col items-center">
-                                <div id="prv-exam-name" class="text-xs font-bold uppercase leading-tight">KỲ THI TỐT NGHIỆP THPT NĂM 2026</div>
-                                <div id="prv-subject" class="text-xs font-bold leading-tight mt-0.5">Môn thi: TIẾNG ANH</div>
-                                <div id="prv-duration" class="text-[11px] italic leading-tight mt-1">Thời gian làm bài: 50 phút, không kể thời gian phát đề</div>
-                                <div class="w-24 border-b border-slate-800 mt-1.5"></div>
+                                <div id="prv-exam-name" class="text-[11.5px] font-bold uppercase leading-snug">KỲ THI TỐT NGHIỆP THPT NĂM 2026</div>
+                                <div id="prv-subject" class="text-[11.5px] font-bold leading-snug mt-0.5">Môn thi: TIẾNG ANH</div>
+                                <div id="prv-duration" class="text-[10.5px] italic leading-snug mt-0.5">Thời gian làm bài: 50 phút, không kể thời gian phát đề</div>
+                                <div class="w-20 border-b border-slate-700 mt-1"></div>
                             </div>
                         </div>
-                        <div id="prv-student-row" class="mt-3 pt-2 flex items-center justify-between gap-2 text-xs">
-                            <div class="leading-relaxed flex-1">
-                                <div><span class="font-bold">Họ, tên thí sinh:</span> ............................................................................</div>
-                                <div><span class="font-bold">Số báo danh:</span> ..................................................................................</div>
+
+                        <!-- Dòng thông tin thí sinh & Mã đề gọn trong khung văn bản -->
+                        <div id="prv-student-row" class="mt-2 pt-1.5 border-t border-slate-200/80 flex items-center justify-between gap-2 text-[11.5px]">
+                            <div id="prv-student-1line" class="flex items-baseline flex-1 min-w-0 pr-1">
+                                <span class="font-bold whitespace-nowrap">Họ, tên thí sinh:</span>
+                                <span class="dot-leader"></span>
+                                <span class="font-bold whitespace-nowrap ml-1">Số báo danh:</span>
+                                <span class="dot-leader" style="max-width: 90px;"></span>
                             </div>
-                            <div class="border border-slate-900 px-3 py-1.5 font-bold text-xs whitespace-nowrap">
-                                Mã đề thi <span id="prv-made">101</span>
+                            <div id="prv-student-2line" class="hidden flex-col flex-1 min-w-0 pr-1 leading-tight space-y-0.5">
+                                <div class="flex items-baseline"><span class="font-bold whitespace-nowrap">Họ, tên thí sinh:</span><span class="dot-leader"></span></div>
+                                <div class="flex items-baseline"><span class="font-bold whitespace-nowrap">Số báo danh:</span><span class="dot-leader"></span></div>
+                            </div>
+                            <div class="border border-slate-900 px-2.5 py-0.5 font-bold text-[11.5px] whitespace-nowrap shrink-0">
+                                Mã đề: <span id="prv-made">101</span>
                             </div>
                         </div>
                     </div>
@@ -380,7 +404,7 @@ from docx import Document
 from docx.oxml.ns import qn, nsdecls
 from docx.text.run import Run as _DocxRun
 from docx.shared import Pt, Cm
-from docx.enum.text import WD_ALIGN_PARAGRAPH as AL, WD_TAB_ALIGNMENT
+from docx.enum.text import WD_ALIGN_PARAGRAPH as AL, WD_TAB_ALIGNMENT, WD_TAB_LEADER
 from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
 from docx.enum.section import WD_ORIENT
 from docx.oxml import OxmlElement, parse_xml
@@ -428,15 +452,31 @@ def run_has_underline(run):
     val = u.get(qn('w:val'))
     return val not in (None, 'none', '0', 'false')
 
-def copy_rpr(new_run, source_run, strip_underline=False):
-    src_rpr = source_run._r.find(qn('w:rPr'))
+def copy_rpr(new_run, source_run, strip_underline=False, strip_bold=False):
+    src_rpr = source_run._r.find(qn('w:rPr')) if source_run is not None else None
     if src_rpr is not None:
         new_rpr = copy.deepcopy(src_rpr)
         if strip_underline:
             for u in list(new_rpr.findall(qn('w:u'))): new_rpr.remove(u)
+        if strip_bold:
+            for b in list(new_rpr.findall(qn('w:b'))): new_rpr.remove(b)
+            for bcs in list(new_rpr.findall(qn('w:bCs'))): new_rpr.remove(bcs)
+            b_off = OxmlElement('w:b')
+            b_off.set(qn('w:val'), '0')
+            bcs_off = OxmlElement('w:bCs')
+            bcs_off.set(qn('w:val'), '0')
+            new_rpr.append(b_off)
+            new_rpr.append(bcs_off)
         old = new_run._r.find(qn('w:rPr'))
         if old is not None: new_run._r.remove(old)
         new_run._r.insert(0, new_rpr)
+    elif strip_bold:
+        new_run.bold = False
+        rpr = new_run._r.get_or_add_rPr()
+        for bcs in list(rpr.findall(qn('w:bCs'))): rpr.remove(bcs)
+        bcs_off = OxmlElement('w:bCs')
+        bcs_off.set(qn('w:val'), '0')
+        rpr.append(bcs_off)
 
 def copy_ppr(new_paragraph, source_paragraph):
     src_ppr = source_paragraph._p.find(qn('w:pPr'))
@@ -813,7 +853,7 @@ def shuffle_plan(parsed, parts, opts, rng=None):
     return global_header, blocks, option_perm, number_str_map, new_order
 
 
-def _copy_seg_run(paragraph, seg, new_number_str=None, mapper=None):
+def _copy_seg_run(paragraph, seg, new_number_str=None, mapper=None, strip_bold=False):
     text, run, strip_u, is_number = seg
     out_text = new_number_str if (is_number and new_number_str is not None) else text
     
@@ -821,7 +861,7 @@ def _copy_seg_run(paragraph, seg, new_number_str=None, mapper=None):
         out_text = mapper(out_text)
         
     r = paragraph.add_run(out_text)
-    copy_rpr(r, run, strip_underline=strip_u)
+    copy_rpr(r, run, strip_underline=strip_u, strip_bold=strip_bold)
     return r
 
 def _emit_plain_paragraph(doc, spec, mapper=None):
@@ -865,38 +905,123 @@ def _make_block_text_mapper(block_qnums, number_str_map):
 
     return substitute
 
-_LEADING_LETTER_RE = re.compile(r'^(\s*)([ABCD])(\.)')
+_OPT_PREFIX_RE = re.compile(r'^(\s*[ABCD]\.\s*)')
 
-def _relabel_first_char(segments, new_letter):
-    if not segments: return segments
-    combined = ""
-    for seg_text, _r, _su, _isn in segments[:4]:
-        combined += seg_text
-        if len(combined) >= 6: break
-    m = _LEADING_LETTER_RE.match(combined)
-    if not m: return segments
-    letter_pos = m.start(2)
+def _emit_option_run(paragraph, opt, new_letter, is_first_of_opt, bold_letter=True, clean_opt_bold=True):
+    """
+    Tách riêng phần nhãn đáp án 'A. ' và phần nội dung đáp án thành các Run độc lập.
+    - Nhãn 'A. ' chỉ in đậm chữ cái và dấu chấm, không gạch chân.
+    - Nội dung đáp án phía sau được loại bỏ hoàn toàn in đậm lộn xộn (strip_bold=True)
+      nhưng vẫn bảo toàn in nghiêng, chỉ số trên/dưới hoặc gạch chân từ vựng (nếu không phải gạch chân đáp án).
+    """
+    segments = list(opt.segments)
+    if not segments:
+        return
 
-    new_segments = list(segments)
+    full_text = "".join(seg[0] for seg in segments)
+    m = _OPT_PREFIX_RE.match(full_text)
+    prefix_end = m.end() if m else 0
+    first_source_run = segments[0][1]
+
+    # 1. Tạo Run riêng cho nhãn "A. " / "B. " / "C. " / "D. "
+    r_label = paragraph.add_run(f"{new_letter}. ")
+    copy_rpr(r_label, first_source_run, strip_underline=True, strip_bold=not bold_letter)
+    r_label.bold = bool(bold_letter)
+
+    # 2. Cắt bỏ phần prefix khỏi segments và xuất phần nội dung đáp án
     pos = 0
-    for idx, (text, run, strip_u, is_number) in enumerate(new_segments):
+    body_Pieces = []
+    for text, run, strip_u, is_number in segments:
         seg_len = len(text)
-        if pos <= letter_pos < pos + seg_len:
-            local_i = letter_pos - pos
-            new_text = text[:local_i] + new_letter + text[local_i + 1:]
-            new_segments[idx] = (new_text, run, strip_u, is_number)
-            break
-        pos += seg_len
-    return new_segments
+        seg_start = pos
+        seg_end = pos + seg_len
+        pos = seg_end
+        if seg_end <= prefix_end:
+            continue
+        cut_start = max(0, prefix_end - seg_start)
+        rem_text = text[cut_start:]
+        if rem_text:
+            body_Pieces.append((rem_text, run, strip_u, is_number))
 
-def _emit_option_run(paragraph, opt, new_letter, is_first_of_opt, bold_letter=False):
-    segments = opt.segments
-    if is_first_of_opt:
-        segments = _relabel_first_char(segments, new_letter)
-    for idx, seg in enumerate(segments):
-        r = _copy_seg_run(paragraph, seg)
-        if bold_letter and idx == 0 and _LEADING_LETTER_RE.match(seg[0]):
-            r.bold = True
+    # Xóa khoảng trắng/tab dư thừa ở cuối phương án để khi ghép Tab không bị nhảy cột
+    while body_Pieces:
+        last_t, last_r, last_su, last_isn = body_Pieces[-1]
+        trimmed = last_t.rstrip(" \t\r\n")
+        if trimmed:
+            body_Pieces[-1] = (trimmed, last_r, last_su, last_isn)
+            break
+        else:
+            body_Pieces.pop()
+
+    for rem_text, run, strip_u, _is_num in body_Pieces:
+        r_body = paragraph.add_run(rem_text)
+        copy_rpr(r_body, run, strip_underline=strip_u, strip_bold=clean_opt_bold)
+        if clean_opt_bold:
+            r_body.bold = False
+
+def _emit_stem_segments_with_clean_qlabel(paragraph, segments, new_number_str, bold_qlabel=True):
+    """
+    Tách riêng nhãn 'Question X.' khỏi phần nội dung câu hỏi trong cùng một Run
+    để khi in đậm 'Question X.' không làm in đậm lan sang nội dung câu hỏi phía sau.
+    """
+    resolved = []
+    for text, run, strip_u, is_number in segments:
+        out_text = new_number_str if (is_number and new_number_str is not None) else text
+        resolved.append((out_text, run, strip_u))
+
+    full_text = "".join(t for t, _r, _su in resolved)
+    m = QUESTION_RE.search(full_text)
+    if not m or not bold_qlabel:
+        for out_text, run, strip_u in resolved:
+            r = paragraph.add_run(out_text)
+            copy_rpr(r, run, strip_underline=strip_u)
+        return
+
+    q_start, q_end = m.start(), m.end()
+    # Tìm run chứa dấu chấm kết thúc của "Question X."
+    pos = 0
+    q_end_run = None
+    for out_text, run, _su in resolved:
+        if pos < q_end <= pos + len(out_text):
+            q_end_run = run
+            break
+        pos += len(out_text)
+
+    pos = 0
+    for out_text, run, strip_u in resolved:
+        seg_len = len(out_text)
+        seg_s = pos
+        seg_e = pos + seg_len
+        pos = seg_e
+
+        if seg_e <= q_start or seg_s >= q_end:
+            r = paragraph.add_run(out_text)
+            # Nếu đoạn text ngay sau "Question X." nằm chung 1 Run gốc với "Question X."
+            # thì tắt bold để tránh chữ câu hỏi bị in đậm theo nhãn Question
+            same_run_as_q = (q_end_run is not None and run is q_end_run and seg_s >= q_end)
+            copy_rpr(r, run, strip_underline=strip_u, strip_bold=same_run_as_q)
+            if same_run_as_q:
+                r.bold = False
+        else:
+            # Segment giao với [q_start, q_end]: cắt thành tối đa 3 phần (trước, trong Question X., sau)
+            if seg_s < q_start:
+                pre_txt = out_text[:q_start - seg_s]
+                if pre_txt:
+                    r_pre = paragraph.add_run(pre_txt)
+                    copy_rpr(r_pre, run, strip_underline=strip_u)
+            mid_s = max(0, q_start - seg_s)
+            mid_e = min(seg_len, q_end - seg_s)
+            mid_txt = out_text[mid_s:mid_e]
+            if mid_txt:
+                r_mid = paragraph.add_run(mid_txt)
+                copy_rpr(r_mid, run, strip_underline=True)
+                r_mid.bold = True
+            if seg_e > q_end:
+                post_txt = out_text[q_end - seg_s:]
+                if post_txt:
+                    r_post = paragraph.add_run(post_txt)
+                    copy_rpr(r_post, run, strip_underline=strip_u, strip_bold=True)
+                    r_post.bold = False
 
 def _set_run_font_Name_and_size(run, font_name=None, font_size_pt=None):
     if font_name and font_name != "original":
@@ -913,7 +1038,9 @@ def _set_run_font_Name_and_size(run, font_name=None, font_size_pt=None):
     if font_size_pt and font_size_pt > 0:
         run.font.size = Pt(font_size_pt)
 
-def _set_table_borders_none(table):
+def _style_compact_table(table, total_width_cm):
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = False
     tblPr = table._tbl.tblPr
     borders = parse_xml(
         f'<w:tblBorders {nsdecls("w")}>'
@@ -925,19 +1052,39 @@ def _set_table_borders_none(table):
         '<w:insideV w:val="none" w:sz="0" w:space="0" w:color="auto"/>'
         '</w:tblBorders>'
     )
-    old = tblPr.find(qn('w:tblBorders'))
-    if old is not None:
-        tblPr.remove(old)
+    old_b = tblPr.find(qn('w:tblBorders'))
+    if old_b is not None:
+        tblPr.remove(old_b)
     tblPr.append(borders)
 
-def _set_cell_box_border(cell):
+    # Đặt lề ô bằng 0 ở hai bên trái/phải để bảng nằm gọn tuyệt đối trong lề văn bản
+    cell_mar = parse_xml(
+        f'<w:tblCellMar {nsdecls("w")}>'
+        '<w:top w:w="20" w:type="dxa"/>'
+        '<w:left w:w="0" w:type="dxa"/>'
+        '<w:bottom w:w="20" w:type="dxa"/>'
+        '<w:right w:w="0" w:type="dxa"/>'
+        '</w:tblCellMar>'
+    )
+    old_m = tblPr.find(qn('w:tblCellMar'))
+    if old_m is not None:
+        tblPr.remove(old_m)
+    tblPr.append(cell_mar)
+
+    tblW = parse_xml(f'<w:tblW {nsdecls("w")} w:w="{int(round(total_width_cm * 567))}" w:type="dxa"/>')
+    old_w = tblPr.find(qn('w:tblW'))
+    if old_w is not None:
+        tblPr.remove(old_w)
+    tblPr.append(tblW)
+
+def _set_cell_box_border_compact(cell):
     tcPr = cell._tc.get_or_add_tcPr()
     borders = parse_xml(
         f'<w:tcBorders {nsdecls("w")}>'
-        '<w:top w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
-        '<w:left w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
-        '<w:bottom w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
-        '<w:right w:val="single" w:sz="6" w:space="0" w:color="000000"/>'
+        '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '<w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
+        '<w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>'
         '</w:tcBorders>'
     )
     old = tcPr.find(qn('w:tcBorders'))
@@ -945,7 +1092,35 @@ def _set_cell_box_border(cell):
         tcPr.remove(old)
     tcPr.append(borders)
 
-def _insert_ministry_header(doc, ma_de, hdr_cfg, font_name="Times New Roman"):
+    mar = parse_xml(
+        f'<w:tcMar {nsdecls("w")}>'
+        '<w:top w:w="30" w:type="dxa"/>'
+        '<w:left w:w="60" w:type="dxa"/>'
+        '<w:bottom w:w="30" w:type="dxa"/>'
+        '<w:right w:w="60" w:type="dxa"/>'
+        '</w:tcMar>'
+    )
+    old_m = tcPr.find(qn('w:tcMar'))
+    if old_m is not None:
+        tcPr.remove(old_m)
+    tcPr.append(mar)
+
+    no_wrap = parse_xml(f'<w:noWrap {nsdecls("w")}/>')
+    old_nw = tcPr.find(qn('w:noWrap'))
+    if old_nw is not None:
+        tcPr.remove(old_nw)
+    tcPr.append(no_wrap)
+
+def _set_cell_exact_width(cell, width_cm):
+    cell.width = Cm(width_cm)
+    tcPr = cell._tc.get_or_add_tcPr()
+    tcW = parse_xml(f'<w:tcW {nsdecls("w")} w:w="{int(round(width_cm * 567))}" w:type="dxa"/>')
+    old_w = tcPr.find(qn('w:tcW'))
+    if old_w is not None:
+        tcPr.remove(old_w)
+    tcPr.append(tcW)
+
+def _insert_ministry_header(doc, ma_de, hdr_cfg, font_name="Times New Roman", usable_width_cm=17.5):
     if not font_name or font_name == "original":
         font_name = "Times New Roman"
 
@@ -957,23 +1132,25 @@ def _insert_ministry_header(doc, ma_de, hdr_cfg, font_name="Times New Roman"):
     subject = hdr_cfg.get("subject", "Môn thi: TIẾNG ANH").strip()
     duration = hdr_cfg.get("duration", "Thời gian làm bài: 50 phút, không kể thời gian phát đề").strip()
     include_student = hdr_cfg.get("student_info", True)
+    student_style = hdr_cfg.get("student_style", "1line")
+
+    left_w = round(usable_width_cm * 0.42, 2)
+    right_w = round(usable_width_cm - left_w, 2)
 
     tbl = doc.add_table(rows=1, cols=2)
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    tbl.autofit = False
-    _set_table_borders_none(tbl)
+    _style_compact_table(tbl, usable_width_cm)
 
     left_cell = tbl.cell(0, 0)
     right_cell = tbl.cell(0, 1)
-    left_cell.width = Cm(7.2)
-    right_cell.width = Cm(10.3)
+    _set_cell_exact_width(left_cell, left_w)
+    _set_cell_exact_width(right_cell, right_w)
 
     # Cột trái
     p_left = left_cell.paragraphs[0]
     p_left.alignment = AL.CENTER
     p_left.paragraph_format.space_before = Pt(0)
-    p_left.paragraph_format.space_after = Pt(2)
-    p_left.paragraph_format.line_spacing = 1.15
+    p_left.paragraph_format.space_after = Pt(1)
+    p_left.paragraph_format.line_spacing = 1.05
 
     if governing:
         r1 = p_left.add_run(governing.upper() + "\n")
@@ -986,83 +1163,99 @@ def _insert_ministry_header(doc, ma_de, hdr_cfg, font_name="Times New Roman"):
     if exam_type:
         r3 = p_left.add_run(exam_type.upper() + ("\n" if page_note else ""))
         r3.bold = True
-        _set_run_font_Name_and_size(r3, font_name, 11)
+        _set_run_font_Name_and_size(r3, font_name, 10.5)
     if page_note:
         r4 = p_left.add_run(page_note)
         r4.italic = True
-        _set_run_font_Name_and_size(r4, font_name, 10.5)
+        _set_run_font_Name_and_size(r4, font_name, 10)
 
     # Cột phải
     p_right = right_cell.paragraphs[0]
     p_right.alignment = AL.CENTER
     p_right.paragraph_format.space_before = Pt(0)
-    p_right.paragraph_format.space_after = Pt(2)
-    p_right.paragraph_format.line_spacing = 1.15
+    p_right.paragraph_format.space_after = Pt(1)
+    p_right.paragraph_format.line_spacing = 1.05
 
     if exam_name:
         r5 = p_right.add_run(exam_name.upper() + "\n")
         r5.bold = True
-        _set_run_font_Name_and_size(r5, font_name, 11.5)
+        _set_run_font_Name_and_size(r5, font_name, 11)
     if subject:
         r6 = p_right.add_run(subject + "\n")
         r6.bold = True
-        _set_run_font_Name_and_size(r6, font_name, 11.5)
+        _set_run_font_Name_and_size(r6, font_name, 11)
     if duration:
         r7 = p_right.add_run(duration)
         r7.italic = True
-        _set_run_font_Name_and_size(r7, font_name, 11)
+        _set_run_font_Name_and_size(r7, font_name, 10.5)
 
-    # Bảng dòng Họ tên thí sinh + Khung Mã đề thi chuẩn Bộ GD&ĐT
+    # Bảng dòng Họ tên thí sinh + Số báo danh + Khung Mã đề gọn trong lề văn bản
+    code_box_w = 2.8
+    info_w = round(max(8.0, usable_width_cm - code_box_w), 2)
+
+    info_tbl = doc.add_table(rows=1, cols=2)
+    _style_compact_table(info_tbl, usable_width_cm)
+
+    c_info = info_tbl.cell(0, 0)
+    c_code = info_tbl.cell(0, 1)
+    _set_cell_exact_width(c_info, info_w)
+    _set_cell_exact_width(c_code, code_box_w)
+    c_info.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    c_code.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+    _set_cell_box_border_compact(c_code)
+
+    pi = c_info.paragraphs[0]
+    pi.alignment = AL.LEFT
+    pi.paragraph_format.space_before = Pt(1)
+    pi.paragraph_format.space_after = Pt(1)
+    pi.paragraph_format.line_spacing = 1.05
+    pi.paragraph_format.first_line_indent = Cm(0)
+    pi.paragraph_format.left_indent = Cm(0)
+
     if include_student:
-        info_tbl = doc.add_table(rows=1, cols=2)
-        info_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-        info_tbl.autofit = False
-        _set_table_borders_none(info_tbl)
+        ts = pi.paragraph_format.tab_stops
+        ts.clear_all()
+        if student_style == "2line":
+            end_tab = round(info_w - 0.35, 2)
+            ts.add_tab_stop(Cm(end_tab), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
+            r_name = pi.add_run("Họ, tên thí sinh: ")
+            r_name.bold = True
+            _set_run_font_Name_and_size(r_name, font_name, 11)
+            r_tab1 = pi.add_run("\t\n")
+            _set_run_font_Name_and_size(r_tab1, font_name, 11)
+            r_sbd = pi.add_run("Số báo danh: ")
+            r_sbd.bold = True
+            _set_run_font_Name_and_size(r_sbd, font_name, 11)
+            r_tab2 = pi.add_run("\t")
+            _set_run_font_Name_and_size(r_tab2, font_name, 11)
+        else:
+            # Gọn trên 1 dòng duy nhất bằng Tab Stop chấm tự động (không bao giờ tràn xuống dòng)
+            tab1_pos = round(info_w * 0.62, 2)
+            tab2_pos = round(info_w - 0.35, 2)
+            ts.add_tab_stop(Cm(tab1_pos), WD_TAB_ALIGNMENT.LEFT, WD_TAB_LEADER.DOTS)
+            ts.add_tab_stop(Cm(tab2_pos), WD_TAB_ALIGNMENT.RIGHT, WD_TAB_LEADER.DOTS)
 
-        c_info = info_tbl.cell(0, 0)
-        c_code = info_tbl.cell(0, 1)
-        c_info.width = Cm(13.3)
-        c_code.width = Cm(4.2)
-        c_info.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        c_code.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
-        _set_cell_box_border(c_code)
+            r_name = pi.add_run("Họ, tên thí sinh: ")
+            r_name.bold = True
+            _set_run_font_Name_and_size(r_name, font_name, 11)
+            r_t1 = pi.add_run("\t")
+            _set_run_font_Name_and_size(r_t1, font_name, 11)
+            r_sbd = pi.add_run(" Số báo danh: ")
+            r_sbd.bold = True
+            _set_run_font_Name_and_size(r_sbd, font_name, 11)
+            r_t2 = pi.add_run("\t")
+            _set_run_font_Name_and_size(r_t2, font_name, 11)
 
-        pi = c_info.paragraphs[0]
-        pi.alignment = AL.LEFT
-        pi.paragraph_format.space_before = Pt(2)
-        pi.paragraph_format.space_after = Pt(2)
-        pi.paragraph_format.line_spacing = 1.2
-        ri1 = pi.add_run("Họ, tên thí sinh: ")
-        ri1.bold = True
-        _set_run_font_Name_and_size(ri1, font_name, 11.5)
-        ri2 = pi.add_run("..........................................................................\n")
-        _set_run_font_Name_and_size(ri2, font_name, 11.5)
-        ri3 = pi.add_run("Số báo danh: ")
-        ri3.bold = True
-        _set_run_font_Name_and_size(ri3, font_name, 11.5)
-        ri4 = pi.add_run(".................................................................................")
-        _set_run_font_Name_and_size(ri4, font_name, 11.5)
-
-        pc = c_code.paragraphs[0]
-        pc.alignment = AL.CENTER
-        pc.paragraph_format.space_before = Pt(4)
-        pc.paragraph_format.space_after = Pt(4)
-        rc = pc.add_run(f"Mã đề thi {ma_de}")
-        rc.bold = True
-        _set_run_font_Name_and_size(rc, font_name, 12)
-    else:
-        p_code = doc.add_paragraph()
-        p_code.alignment = AL.RIGHT
-        p_code.paragraph_format.space_before = Pt(3)
-        p_code.paragraph_format.space_after = Pt(3)
-        rc = p_code.add_run(f"Mã đề thi: {ma_de}")
-        rc.bold = True
-        _set_run_font_Name_and_size(rc, font_name, 12)
-
-    # Đường kẻ phân cách nhẹ dưới phần tiêu đề
-    p_sep = doc.add_paragraph()
-    p_sep.paragraph_format.space_before = Pt(0)
-    p_sep.paragraph_format.space_after = Pt(4)
+    pc = c_code.paragraphs[0]
+    pc.alignment = AL.CENTER
+    pc.paragraph_format.space_before = Pt(1)
+    pc.paragraph_format.space_after = Pt(1)
+    pc.paragraph_format.line_spacing = 1.0
+    pc.paragraph_format.first_line_indent = Cm(0)
+    pc.paragraph_format.left_indent = Cm(0)
+    rc = pc.add_run(f"Mã đề: {ma_de}")
+    rc.bold = True
+    _set_run_font_Name_and_size(rc, font_name, 11)
 
 def _choose_options_layout(opts, requested_layout, orig_mode):
     if requested_layout == "original" or not requested_layout:
@@ -1128,19 +1321,15 @@ def _apply_paragraph_formatting(p, fmt_cfg, is_option_para=False, option_cols=0,
     for r in p.runs:
         _set_run_font_Name_and_size(r, font_name, font_size)
 
-def _bold_question_prefix_in_paragraph(p):
-    # Bold "Question X." at the start of the question stem
-    full_text = "".join(r.text for r in p.runs)
-    m = QUESTION_RE.search(full_text)
-    if not m:
-        return
-    end_pos = m.end()
-    pos = 0
-    for r in p.runs:
-        r_len = len(r.text)
-        if pos < end_pos:
-            r.bold = True
-        pos += r_len
+def _get_doc_usable_width_cm(doc):
+    try:
+        sec = doc.sections[0]
+        pw = sec.page_width.cm if sec.page_width else 21.0
+        ml = sec.left_margin.cm if sec.left_margin else 2.0
+        mr = sec.right_margin.cm if sec.right_margin else 1.5
+        return max(12.0, round(pw - ml - mr, 2))
+    except Exception:
+        return 17.5
 
 def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map, out_path, ma_de="101", header_line=None, ministry_hdr=None, fmt_cfg=None):
     doc = Document(parsed["doc_path"])
@@ -1150,13 +1339,11 @@ def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map,
         if child.tag != qn('w:sectPr'): body.remove(child)
 
     # Căn lề trang giấy chuẩn A4 nếu bật cấu hình căn chỉnh
-    usable_width_cm = 17.5
     if fmt_cfg and fmt_cfg.get("enabled", False):
         m_top = float(fmt_cfg.get("margin_top", 1.5) or 1.5)
         m_bottom = float(fmt_cfg.get("margin_bottom", 1.5) or 1.5)
         m_left = float(fmt_cfg.get("margin_left", 2.0) or 2.0)
         m_right = float(fmt_cfg.get("margin_right", 1.5) or 1.5)
-        usable_width_cm = max(12.0, 21.0 - m_left - m_right)
         for section in doc.sections:
             section.page_width = Cm(21.0)
             section.page_height = Cm(29.7)
@@ -1165,33 +1352,39 @@ def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map,
             section.left_margin = Cm(m_left)
             section.right_margin = Cm(m_right)
 
+    usable_width_cm = _get_doc_usable_width_cm(doc)
+
     use_ministry = bool(ministry_hdr and ministry_hdr.get("enabled", False))
     font_for_hdr = (fmt_cfg.get("font_name", "Times New Roman") if fmt_cfg else "Times New Roman")
 
     if use_ministry:
-        _insert_ministry_header(doc, ma_de, ministry_hdr, font_name=font_for_hdr)
+        _insert_ministry_header(doc, ma_de, ministry_hdr, font_name=font_for_hdr, usable_width_cm=usable_width_cm)
     elif header_line:
         p = doc.add_paragraph()
+        p.alignment = AL.RIGHT
+        p.paragraph_format.space_before = Pt(0)
+        p.paragraph_format.space_after = Pt(2)
         r = p.add_run(header_line)
         r.bold = True
-        _apply_paragraph_formatting(p, fmt_cfg)
+        _set_run_font_Name_and_size(r, font_for_hdr, 11.5)
 
     qmap = {q.number: q for q in parsed["questions"]}
     replace_old_header = use_ministry and ministry_hdr.get("replace_old", True)
     if not replace_old_header:
         for spec in global_header: 
             p = _emit_plain_paragraph(doc, spec)
-            _apply_paragraph_formatting(p, fmt_cfg)
+            _apply_paragraph_formatting(p, fmt_cfg, usable_width_cm=usable_width_cm)
 
     req_opt_layout = fmt_cfg.get("options_layout", "original") if (fmt_cfg and fmt_cfg.get("enabled")) else "original"
-    bold_qlabel = bool(fmt_cfg and fmt_cfg.get("enabled") and fmt_cfg.get("bold_qlabel", True))
+    bold_qlabel = True if not (fmt_cfg and fmt_cfg.get("enabled")) else bool(fmt_cfg.get("bold_qlabel", True))
+    clean_opt_bold = True if not (fmt_cfg and fmt_cfg.get("enabled")) else bool(fmt_cfg.get("clean_opt_bold", True))
 
     for block in blocks:
         mapper = _make_block_text_mapper(block["qnums"], number_str_map)
 
         for spec in block["specs_before"]: 
             p = _emit_plain_paragraph(doc, spec, mapper=mapper)
-            _apply_paragraph_formatting(p, fmt_cfg)
+            _apply_paragraph_formatting(p, fmt_cfg, usable_width_cm=usable_width_cm)
             
         for old_q_num in block["qnums"]:
             q = qmap[old_q_num]
@@ -1203,25 +1396,23 @@ def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map,
             if chosen_layout == 'inline_with_marker' and q.options_mode == 'inline_with_marker':
                 p = doc.add_paragraph()
                 copy_ppr(p, q.stem_paragraphs[0].source_paragraph)
-                for seg in q.stem_paragraphs[0].segments: 
-                    _copy_seg_run(p, seg, new_number_str=new_num_str)
-                if bold_qlabel:
-                    _bold_question_prefix_in_paragraph(p)
+                _emit_stem_segments_with_clean_qlabel(p, q.stem_paragraphs[0].segments, new_num_str, bold_qlabel=bold_qlabel)
                 for i, opt in enumerate(opts):
                     if i > 0:
                         tab_run = p.add_run("\t")
-                        if opt.segments: copy_rpr(tab_run, opt.segments[0][1], strip_underline=True)
-                    _emit_option_run(p, opt, "ABCD"[i], True, bold_letter=bold_qlabel)
-                _apply_paragraph_formatting(p, fmt_cfg)
+                        if opt.segments: copy_rpr(tab_run, opt.segments[0][1], strip_underline=True, strip_bold=True)
+                    _emit_option_run(p, opt, "ABCD"[i], True, bold_letter=bold_qlabel, clean_opt_bold=clean_opt_bold)
+                _apply_paragraph_formatting(p, fmt_cfg, usable_width_cm=usable_width_cm)
             else:
                 for sp_idx, sp in enumerate(q.stem_paragraphs):
                     p = doc.add_paragraph()
                     copy_ppr(p, sp.source_paragraph)
-                    for seg in sp.segments: 
-                        _copy_seg_run(p, seg, new_number_str=new_num_str)
-                    if sp_idx == 0 and bold_qlabel:
-                        _bold_question_prefix_in_paragraph(p)
-                    _apply_paragraph_formatting(p, fmt_cfg)
+                    if sp_idx == 0:
+                        _emit_stem_segments_with_clean_qlabel(p, sp.segments, new_num_str, bold_qlabel=bold_qlabel)
+                    else:
+                        for seg in sp.segments:
+                            _copy_seg_run(p, seg, new_number_str=new_num_str)
+                    _apply_paragraph_formatting(p, fmt_cfg, usable_width_cm=usable_width_cm)
 
                 if opts:
                     ppr_src = q.options_ppr_source or q.stem_paragraphs[-1].source_paragraph
@@ -1231,8 +1422,8 @@ def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map,
                         for i, opt in enumerate(opts):
                             if i > 0:
                                 tab_run = p.add_run("\t")
-                                if opt.segments: copy_rpr(tab_run, opt.segments[0][1], strip_underline=True)
-                            _emit_option_run(p, opt, "ABCD"[i], True, bold_letter=bold_qlabel)
+                                if opt.segments: copy_rpr(tab_run, opt.segments[0][1], strip_underline=True, strip_bold=True)
+                            _emit_option_run(p, opt, "ABCD"[i], True, bold_letter=bold_qlabel, clean_opt_bold=clean_opt_bold)
                         _apply_paragraph_formatting(p, fmt_cfg, is_option_para=True, option_cols=4, usable_width_cm=usable_width_cm)
                     elif chosen_layout == '2col' and len(opts) == 4:
                         for row_pair in ((0, 1), (2, 3)):
@@ -1242,37 +1433,37 @@ def render_exam_docx(parsed, global_header, blocks, option_perm, number_str_map,
                                 opt = opts[opt_idx]
                                 if pos_in_row > 0:
                                     tab_run = p.add_run("\t")
-                                    if opt.segments: copy_rpr(tab_run, opt.segments[0][1], strip_underline=True)
-                                _emit_option_run(p, opt, "ABCD"[opt_idx], True, bold_letter=bold_qlabel)
+                                    if opt.segments: copy_rpr(tab_run, opt.segments[0][1], strip_underline=True, strip_bold=True)
+                                _emit_option_run(p, opt, "ABCD"[opt_idx], True, bold_letter=bold_qlabel, clean_opt_bold=clean_opt_bold)
                             _apply_paragraph_formatting(p, fmt_cfg, is_option_para=True, option_cols=2, usable_width_cm=usable_width_cm)
                     else:
                         for i, opt in enumerate(opts):
                             p = doc.add_paragraph()
                             copy_ppr(p, ppr_src)
-                            _emit_option_run(p, opt, "ABCD"[i], True, bold_letter=bold_qlabel)
+                            _emit_option_run(p, opt, "ABCD"[i], True, bold_letter=bold_qlabel, clean_opt_bold=clean_opt_bold)
                             _apply_paragraph_formatting(p, fmt_cfg, is_option_para=True, option_cols=1, usable_width_cm=usable_width_cm)
 
             for spec in block["specs_internal"].get(old_q_num, []): 
                 p = _emit_plain_paragraph(doc, spec, mapper=mapper)
-                _apply_paragraph_formatting(p, fmt_cfg)
+                _apply_paragraph_formatting(p, fmt_cfg, usable_width_cm=usable_width_cm)
 
     # Chèn phần kết thúc đề theo quy chuẩn Bộ GD&ĐT nếu bật
     if use_ministry and ministry_hdr.get("footer_end", True):
         p_end = doc.add_paragraph()
         p_end.alignment = AL.CENTER
-        p_end.paragraph_format.space_before = Pt(8)
-        p_end.paragraph_format.space_after = Pt(2)
-        r_end = p_end.add_run("---------------- HẾT ----------------")
+        p_end.paragraph_format.space_before = Pt(6)
+        p_end.paragraph_format.space_after = Pt(1)
+        r_end = p_end.add_run("------ HẾT ------")
         r_end.bold = True
-        _set_run_font_Name_and_size(r_end, font_for_hdr, 11.5)
+        _set_run_font_Name_and_size(r_end, font_for_hdr, 11)
 
         p_note = doc.add_paragraph()
         p_note.alignment = AL.CENTER
         p_note.paragraph_format.space_before = Pt(0)
         p_note.paragraph_format.space_after = Pt(0)
-        r_note = p_note.add_run("- Thí sinh không được sử dụng tài liệu;\n- Giám thị không giải thích gì thêm.")
+        r_note = p_note.add_run("Thí sinh không được sử dụng tài liệu. Cán bộ coi thi không giải thích gì thêm.")
         r_note.italic = True
-        _set_run_font_Name_and_size(r_note, font_for_hdr, 10.5)
+        _set_run_font_Name_and_size(r_note, font_for_hdr, 10)
 
     if sect_prs: body.append(copy.deepcopy(sect_prs[-1]))
     doc.save(out_path)
@@ -1421,6 +1612,7 @@ def generate_shuffled(options_json):
         const duration = document.getElementById('hdr-duration').value.trim();
         const startCode = document.getElementById('start-code').value.trim() || '101';
         const showStudent = document.getElementById('hdr-student-info').checked;
+        const studentStyle = document.getElementById('hdr-student-style').value;
 
         document.getElementById('prv-governing').textContent = gov || ' ';
         document.getElementById('prv-school').textContent = school || ' ';
@@ -1430,7 +1622,9 @@ def generate_shuffled(options_json):
         document.getElementById('prv-subject').textContent = subject || ' ';
         document.getElementById('prv-duration').textContent = duration || ' ';
         document.getElementById('prv-made').textContent = startCode;
-        document.getElementById('prv-student-row').classList.toggle('hidden', !showStudent);
+        document.getElementById('prv-student-1line').classList.toggle('hidden', !showStudent || studentStyle !== '1line');
+        document.getElementById('prv-student-2line').classList.toggle('hidden', !showStudent || studentStyle !== '2line');
+        document.getElementById('prv-student-2line').classList.toggle('flex', showStudent && studentStyle === '2line');
     }
 
     async function initPyodide() {
@@ -1680,6 +1874,7 @@ def generate_shuffled(options_json):
                     subject: document.getElementById('hdr-subject').value,
                     duration: document.getElementById('hdr-duration').value,
                     student_info: document.getElementById('hdr-student-info').checked,
+                    student_style: document.getElementById('hdr-student-style').value,
                     replace_old: document.getElementById('hdr-replace-old').checked,
                     footer_end: document.getElementById('hdr-footer-end').checked
                 },
@@ -1696,7 +1891,8 @@ def generate_shuffled(options_json):
                     margin_bottom: parseFloat(document.getElementById('margin-bottom').value || '1.5'),
                     margin_left: parseFloat(document.getElementById('margin-left').value || '2.0'),
                     margin_right: parseFloat(document.getElementById('margin-right').value || '1.5'),
-                    bold_qlabel: document.getElementById('fmt-bold-qlabel').checked
+                    bold_qlabel: document.getElementById('fmt-bold-qlabel').checked,
+                    clean_opt_bold: document.getElementById('fmt-clean-opt-bold').checked
                 }
             };
             
