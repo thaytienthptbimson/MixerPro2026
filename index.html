@@ -65,6 +65,20 @@
                         <p class="text-sm font-medium text-slate-600" id="file-name-display">Kéo thả file hoặc click để chọn</p>
                     </div>
                     
+                    <div class="mt-4 space-y-2 bg-slate-50 border border-slate-200 rounded-lg p-3">
+                        <label class="block text-xs font-semibold text-slate-600">Cấu trúc đề:</label>
+                        <select id="exam-mode" onchange="onModeChange()" class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs font-medium focus:ring-indigo-500 focus:border-indigo-500">
+                            <option value="free" selected>Tự do – đề "Question X" (Tiếng Anh / đề cũ)</option>
+                            <option value="vn3">Mẫu Bộ 2026 – 3 phần: Toán, Lí, Hóa, Sinh, Địa</option>
+                            <option value="vn2">Mẫu Bộ 2026 – 2 phần: Lịch sử, GD KT&amp;PL</option>
+                        </select>
+                        <div id="vn-extra" class="hidden space-y-2">
+                            <select id="vn-subject" onchange="onSubjectChange()" class="w-full border border-slate-300 rounded-md px-2 py-1.5 text-xs font-medium focus:ring-indigo-500 focus:border-indigo-500"></select>
+                            <button type="button" onclick="fillMinistryHeader()" class="text-[11px] text-indigo-700 hover:underline font-semibold">Điền tiêu đề mẫu Bộ GD&amp;ĐT 2026</button>
+                            <p id="vn-hint" class="text-[11px] text-slate-500 leading-relaxed"></p>
+                        </div>
+                    </div>
+
                     <button id="btn-analyze" onclick="analyzeFile()" disabled class="mt-4 w-full bg-indigo-600 text-white font-semibold py-2.5 rounded-lg shadow hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex justify-center items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
                         Phân Tích Đề
@@ -1491,6 +1505,306 @@ def build_answer_key_docx(all_keys, out_path):
                 shown = CIRCLED.get(letter, "?") if letter else "?"
                 row_cells[j].text = f"{num_str}. {shown}"
     doc.save(out_path)
+
+# ===================== MẪU ĐỀ BỘ GD&ĐT 2026 (3 phần / 2 phần) =====================
+from docx.text.paragraph import Paragraph as _Para
+PART_H_RE = re.compile(r'^\s*PH[ẦA]N\s+(?:I{1,3}|[123])\b', re.I)
+CAU_RE = re.compile(r'^\s*Câu\s+(\d+)\s*[.:)]', re.I)
+OPT_RE = re.compile(r'^\s*([ABCD])\s*\.\s*')
+STM_RE = re.compile(r'^\s*([a-d])\s*\)\s*')
+CTX_RE = re.compile(r'(?i)\bcâu\s*\d+(?:\s*(?:và|đến|,|-|–)\s*(?:câu\s*)?\d+)+')
+CTX_CUE = re.compile(r'(?i)trả lời|sử dụng|dùng|dựa|căn cứ|đọc')
+ANS_RE = re.compile(r'^\s*(?:Đáp\s*án|Đáp\s*số|ĐS)\s*[:=]\s*(.+?)\s*$', re.I)
+END_RE = re.compile(r'^[\s\-–—_.*]*HẾT[\s\-–—_.*]*$', re.I)
+_T, _TAB, _R, _U, _P, _TBL, _PPR = [qn('w:' + x) for x in ('t', 'tab', 'r', 'u', 'p', 'tbl', 'pPr')]
+_SPECIAL = {qn('m:oMath'), qn('w:object'), qn('w:drawing'), qn('w:pict')}
+_XSP = '{http://www.w3.org/XML/1998/namespace}space'
+
+def _seq(el): return [x for x in el.iter(_T, _TAB) if x.tag == _T or x.getparent().tag == _R]
+def _tx(x): return (x.text or '') if x.tag == _T else '\t'
+def _txt(el): return ''.join(_tx(x) for x in _seq(el))
+def _ptxt(e): return _txt(e) if e.tag == _P else ''
+def _strip_u(el):
+    for u in list(el.iter(_U)): u.getparent().remove(u)
+def _ul(el):
+    for r in el.iter(_R):
+        rp = r.find(qn('w:rPr')); u = rp.find(_U) if rp is not None else None
+        if u is not None and u.get(qn('w:val')) not in (None, 'none', '0', 'false') and _txt(r).strip(): return True
+    return False
+def _olen(el): return len(_txt(el)) + 25 * sum(1 for x in el.iter() if x.tag in _SPECIAL)
+
+def _sub_span(el, a, b, new):
+    pos, done = 0, False
+    for x in _seq(el):
+        e = pos + len(_tx(x))
+        if x.tag == _T and e > a and pos < b:
+            t = x.text or ''
+            x.text = t[:max(a - pos, 0)] + ('' if done else new) + t[min(b, e) - pos:]
+            x.set(_XSP, 'preserve'); done = True
+        pos = e
+        if pos >= b: break
+
+def _split(el, ranges):
+    """Cắt 1 đoạn thành nhiều đoạn theo khoảng ký tự, GIỮ NGUYÊN công thức/hình (không làm mất MathType, OMML, ảnh)."""
+    kids = [k for k in el if k.tag != _PPR]; spans, pos = [], 0
+    for k in kids:
+        n = sum(len(_tx(x)) for x in _seq(k)); spans.append((pos, pos + n)); pos += n
+    ppr = el.find(_PPR); out = []
+    for a, b in ranges:
+        p = OxmlElement('w:p')
+        if ppr is not None: p.append(copy.deepcopy(ppr))
+        for k, (s, e) in zip(kids, spans):
+            if e == s:
+                if a < s <= b or (s == 0 and a == 0): p.append(copy.deepcopy(k))
+                continue
+            if e <= a or s >= b: continue
+            c = copy.deepcopy(k); q = s
+            for x in _seq(c):
+                L = len(_tx(x)); lo, hi = max(a - q, 0), min(b - q, L)
+                if x.tag == _T:
+                    x.text = (x.text or '')[lo:hi] if hi > lo else ''; x.set(_XSP, 'preserve')
+                elif hi <= lo: x.getparent().remove(x)
+                q += L
+            p.append(c)
+        out.append(p)
+    return out
+
+def _carry(lst, start):
+    for k in range(start, len(lst)):
+        t = _ptxt(lst[k]); m = CTX_RE.search(t)
+        if m and CTX_CUE.search(t):
+            n = [int(v) for v in re.findall(r'\d+', m.group(0))]
+            return k, n[0], max(n)
+    return None
+
+def _kind_of(h, i):
+    h = h.lower()
+    if 'nhiều phương án' in h or 'nhiều lựa chọn' in h: return 'mc'
+    if 'đúng sai' in h or 'đúng/sai' in h or 'đúng - sai' in h: return 'tf'
+    if 'trả lời ngắn' in h: return 'sa'
+    return ('mc', 'tf', 'sa')[min(i, 2)]
+
+def _parse_q(kind, blk):
+    t0 = _txt(blk[0]); m0 = CAU_RE.match(t0)
+    q = {'num': int(m0.group(1)), 'kind': kind, 'stem': [blk[0]], 'opts': [], 'tail': [], 'ans': None, 'mode': None, 'moved': None}
+    rest = blk[1:]
+    if kind == 'mc':
+        mi = INLINE_OPTIONS_RE.search(t0, m0.end())
+        if mi:
+            ps = _split(blk[0], [(0, mi.start('A'))] + [(mi.start(L), mi.end(L)) for L in 'ABCD'])
+            q['stem'] = [ps[0]]; q['opts'] = [{'el': e, 'ok': _ul(e)} for e in ps[1:]]; q['mode'] = 'inline'
+        else:
+            i = 0
+            while i < len(rest):
+                e = rest[i]; t = _ptxt(e); mo = OPT_RE.match(t)
+                if mo and mo.group(1) == 'A':
+                    ml = INLINE_OPTIONS_RE.search(t)
+                    if ml and not t[:ml.start('A')].strip():
+                        ps = _split(e, [(ml.start(L), ml.end(L)) for L in 'ABCD'])
+                        q['opts'] = [{'el': x, 'ok': _ul(x)} for x in ps]; q['mode'] = 'same'; i += 1; break
+                    if i + 3 < len(rest) and all((OPT_RE.match(_ptxt(rest[i + j])) or [None, ''])[1] == 'ABCD'[j] if OPT_RE.match(_ptxt(rest[i + j])) else False for j in range(4)):
+                        q['opts'] = [{'el': x, 'ok': _ul(x)} for x in rest[i:i + 4]]; q['mode'] = 'sep'; i += 4; break
+                q['stem'].append(e); i += 1
+            rest = rest[i:]
+        q['tail'] = rest
+    elif kind == 'tf':
+        i = 0
+        while i < len(rest) and not STM_RE.match(_ptxt(rest[i])): q['stem'].append(rest[i]); i += 1
+        st = []
+        while i < len(rest) and len(st) < 4:
+            ms = STM_RE.match(_ptxt(rest[i]))
+            if ms and ms.group(1) == 'abcd'[len(st)]: st.append({'els': [rest[i]]})
+            elif st: st[-1]['els'].append(rest[i])
+            else: break
+            i += 1
+        for x in st: x['ok'] = any(_ul(e) for e in x['els'])
+        q['opts'] = st; q['tail'] = rest[i:]
+    else:
+        for e in rest:
+            ma = ANS_RE.match(_ptxt(e))
+            if ma and q['ans'] is None: q['ans'] = ma.group(1)
+            else: q['stem'].append(e)
+    lst = q['stem'] if kind == 'sa' else q['tail']
+    c = _carry(lst, 1 if kind == 'sa' else 0)
+    if c:
+        k, a, b = c; q['moved'] = lst[k:]; q['rng'] = (a, b); del lst[k:]
+    return q
+
+def parse_vn(path):
+    doc = Document(path); pre, parts, cur = [], [], None
+    for e in [x for x in doc.element.body if x.tag in (_P, _TBL)]:
+        t = _ptxt(e)
+        if cur is not None and cur['started'] and END_RE.match(t): break
+        if PART_H_RE.match(t):
+            if cur is None or cur['started']:
+                cur = {'head': [e], 'els': [], 'started': False, 'last': 0}; parts.append(cur)
+            else: cur['head'].append(e)
+            continue
+        m = CAU_RE.match(t)
+        if m:
+            n = int(m.group(1))
+            if cur is None or (cur['started'] and n <= cur['last']):
+                cur = {'head': [], 'els': [], 'started': False, 'last': 0}; parts.append(cur)
+            cur['started'] = True; cur['last'] = n
+        if cur is None: pre.append(e)
+        elif cur['started']: cur['els'].append(e)
+        else: cur['head'].append(e)
+    for i, p in enumerate(parts):
+        p['kind'] = _kind_of(' '.join(_ptxt(x) for x in p['head']), i)
+        blks = []
+        for e in p['els']:
+            if CAU_RE.match(_ptxt(e)): blks.append([e])
+            else: blks[-1].append(e)
+        carry = None
+        c0 = _carry(p['head'], 1)
+        if c0: carry = (p['head'][c0[0]:], c0[2]); del p['head'][c0[0]:]
+        units, cu = [], None
+        for blk in blks:
+            q = _parse_q(p['kind'], blk)
+            if carry: cu = {'pre': carry[0], 'qs': [q], 'end': carry[1]}; units.append(cu)
+            elif cu and q['num'] <= cu['end']: cu['qs'].append(q)
+            else: cu = {'pre': [], 'qs': [q], 'end': 0}; units.append(cu)
+            carry = (q['moved'], q['rng'][1]) if q['moved'] else None
+        if carry and units:
+            lq = units[-1]['qs'][-1]; (lq['stem'] if p['kind'] == 'sa' else lq['tail']).extend(carry[0])
+        p['units'] = units
+    return {'path': path, 'pre': pre, 'parts': parts}
+
+def vn_summary(parsed):
+    r = []
+    for i, p in enumerate(parsed['parts']):
+        h = ' '.join(_ptxt(e) for e in p['head']).strip()
+        r.append({'kind': p['kind'], 'title': h[:110] or ('Phần %d' % (i + 1)), 'n': sum(len(u['qs']) for u in p['units']), 'groups': sum(1 for u in p['units'] if u['pre'])})
+    return r
+
+def vn_plan(parsed, cfg, rng=random):
+    plan = []
+    for pi, part in enumerate(parsed['parts']):
+        c = cfg.get(pi, {}); units = list(part['units'])
+        if c.get('shuffle_order'): rng.shuffle(units)
+        perm = {}
+        for u in units:
+            for q in u['qs']:
+                o = list(q['opts'])
+                if c.get('shuffle_options') and len(o) == 4: rng.shuffle(o)
+                perm[id(q)] = o
+        plan.append((units, perm))
+    return plan
+
+def _remap_ctx(el, mp):
+    for m in reversed(list(CTX_RE.finditer(_ptxt(el)))):
+        for d in reversed(list(re.finditer(r'\d+', m.group(0)))):
+            n = int(d.group(0))
+            if n in mp: _sub_span(el, m.start() + d.start(), m.start() + d.end(), str(mp[n]))
+
+def _key(q, opts):
+    if q['kind'] == 'mc': return next(('ABCD'[i] for i, o in enumerate(opts) if o['ok']), '?')
+    if q['kind'] == 'tf':
+        anyok = any(o['ok'] for o in opts)
+        return [('Đ' if o['ok'] else 'S') if anyok else '?' for o in opts]
+    return q['ans'] or '?'
+
+def render_vn(parsed, plan, out_path, ma_de, header_line, hdr, fmt):
+    doc = Document(parsed['path']); body = doc.element.body; sect = body.find(qn('w:sectPr'))
+    for ch in list(body):
+        if ch.tag != qn('w:sectPr'): body.remove(ch)
+    on = bool(fmt and fmt.get('enabled'))
+    if on:
+        for sc in doc.sections:
+            sc.page_width, sc.page_height = Cm(21.0), Cm(29.7)
+            sc.top_margin = Cm(float(fmt.get('margin_top') or 1.5)); sc.bottom_margin = Cm(float(fmt.get('margin_bottom') or 1.5))
+            sc.left_margin = Cm(float(fmt.get('margin_left') or 2.0)); sc.right_margin = Cm(float(fmt.get('margin_right') or 1.5))
+    uw = _get_doc_usable_width_cm(doc); use_min = bool(hdr and hdr.get('enabled'))
+    font = (fmt.get('font_name') if fmt else None) or 'Times New Roman'
+    if use_min: _insert_ministry_header(doc, ma_de, hdr, font_name=font, usable_width_cm=uw)
+    elif header_line:
+        hp = doc.add_paragraph(); hp.alignment = AL.RIGHT; hr = hp.add_run(header_line); hr.bold = True
+    req = fmt.get('options_layout', 'original') if on else 'original'
+
+    def put(el, cols=0, opt=False, cp=True):
+        c = copy.deepcopy(el) if cp else el
+        if sect is not None: sect.addprevious(c)
+        else: body.append(c)
+        if c.tag == _P: _apply_paragraph_formatting(_Para(c, doc._body), fmt, is_option_para=opt, option_cols=cols, usable_width_cm=uw)
+        return c
+
+    def emit_mc(q, opts):
+        if not opts: return
+        if req in ('4col', '2col', '1col'): lay = req
+        elif req == 'auto':
+            mx = max(_olen(o['el']) for o in opts); lay = '4col' if mx <= 16 else ('2col' if mx <= 36 else '1col')
+        else: lay = '1col' if q['mode'] == 'sep' else '4col'
+        els = []
+        for i, o in enumerate(opts):
+            c = copy.deepcopy(o['el']); mo = OPT_RE.match(_txt(c))
+            if mo and i < 4: _sub_span(c, mo.start(1), mo.end(1), 'ABCD'[i])
+            if o['ok']: _strip_u(c)
+            els.append(c)
+        for r in {'4col': [els], '2col': [els[:2], els[2:]], '1col': [[e] for e in els]}[lay]:
+            first = r[0]
+            for e in r[1:]:
+                tr = OxmlElement('w:r'); tr.append(OxmlElement('w:tab')); first.append(tr)
+                for k in [k for k in e if k.tag != _PPR]: first.append(k)
+            put(first, cols=len(r) if len(r) in (2, 4) else 1, opt=True, cp=False)
+
+    if not (use_min and hdr.get('replace_old', True)):
+        for e in parsed['pre']: put(e)
+    allkeys = []
+    for pi, (part, (units, perm)) in enumerate(zip(parsed['parts'], plan)):
+        for e in part['head']: put(e)
+        n, keys = 0, []
+        for u in units:
+            mp = {q['num']: n + i + 1 for i, q in enumerate(u['qs'])}
+            for e in u['pre']: _remap_ctx(put(e), mp)
+            for q in u['qs']:
+                n += 1; opts = perm[id(q)]
+                for k, e in enumerate(q['stem']):
+                    c = put(e)
+                    if k == 0:
+                        m = CAU_RE.match(_ptxt(c))
+                        if m: _sub_span(c, m.start(1), m.end(1), str(n))
+                if q['kind'] == 'mc': emit_mc(q, opts)
+                elif q['kind'] == 'tf':
+                    for i, sx in enumerate(opts):
+                        for j, e in enumerate(sx['els']):
+                            c = put(e)
+                            if j == 0:
+                                ms = STM_RE.match(_txt(c))
+                                if ms and i < 4: _sub_span(c, ms.start(1), ms.end(1), 'abcd'[i])
+                            if sx['ok']: _strip_u(c)
+                for e in q['tail']: put(e)
+                keys.append(_key(q, opts))
+        allkeys.append((part['kind'], 'PHẦN ' + (['I', 'II', 'III'] + [str(pi + 1)])[min(pi, 3)], keys))
+    if use_min and hdr.get('footer_end', True):
+        pe = doc.add_paragraph(); pe.alignment = AL.CENTER; pe.paragraph_format.space_before = Pt(6)
+        re_ = pe.add_run('------ HẾT ------'); re_.bold = True; _set_run_font_Name_and_size(re_, font, 11)
+        pn = doc.add_paragraph(); pn.alignment = AL.CENTER
+        rn = pn.add_run('Thí sinh không được sử dụng tài liệu. Cán bộ coi thi không giải thích gì thêm.'); rn.italic = True
+        _set_run_font_Name_and_size(rn, font, 10)
+    doc.save(out_path)
+    return allkeys
+
+def build_key_vn(all_keys, out_path):
+    doc = Document(); doc.add_heading('BẢNG ĐÁP ÁN', level=1)
+    for label, parts in all_keys:
+        doc.add_heading(label, level=2)
+        for kind, name, keys in parts:
+            doc.add_paragraph().add_run(name).bold = True
+            if kind == 'mc':
+                for i in range(0, len(keys), 10):
+                    ch = keys[i:i + 10]; t = doc.add_table(rows=2, cols=len(ch)); t.style = 'Table Grid'
+                    for j, k in enumerate(ch): t.cell(0, j).text = str(i + j + 1); t.cell(1, j).text = k
+            elif kind == 'tf':
+                t = doc.add_table(rows=1 + len(keys), cols=5); t.style = 'Table Grid'
+                for j, h in enumerate(['Câu', 'a)', 'b)', 'c)', 'd)']): t.cell(0, j).text = h
+                for r, k in enumerate(keys, 1):
+                    t.cell(r, 0).text = str(r)
+                    for j, v in enumerate(k[:4]): t.cell(r, j + 1).text = v
+            else:
+                t = doc.add_table(rows=1 + len(keys), cols=2); t.style = 'Table Grid'
+                t.cell(0, 0).text = 'Câu'; t.cell(0, 1).text = 'Đáp án'
+                for r, k in enumerate(keys, 1): t.cell(r, 0).text = str(r); t.cell(r, 1).text = str(k)
+    doc.save(out_path)
 </script>
 
 <script type="text/plain" id="wrapper-py">
@@ -1550,6 +1864,26 @@ def generate_shuffled(options_json):
         out_files["BangDapAn.docx"] = base64.b64encode(f.read()).decode('utf-8')
         
     return json.dumps(out_files)
+
+G_VN = None
+def parse_docx_vn(base64_data):
+    global G_VN
+    with open('/input_vn.docx', 'wb') as f: f.write(base64.b64decode(base64_data))
+    G_VN = engine.parse_vn('/input_vn.docx')
+    return json.dumps(engine.vn_summary(G_VN))
+
+def generate_shuffled_vn(options_json):
+    o = json.loads(options_json)
+    cfg = {int(k): v for k, v in o.items() if str(k).isdigit()}
+    files, keys = {}, []
+    for i in range(o.get('num_ma_de', 4)):
+        md = str(o.get('start_code', 101) + i); path = '/MaDe_%s.docx' % md
+        ks = engine.render_vn(G_VN, engine.vn_plan(G_VN, cfg, random), path, md, ('Mã đề: ' + md) if o.get('insert_header', True) else None, o.get('ministry_header'), o.get('text_format'))
+        keys.append(('Mã đề ' + md, ks))
+        with open(path, 'rb') as f: files['MaDe_%s.docx' % md] = base64.b64encode(f.read()).decode('utf-8')
+    engine.build_key_vn(keys, '/BangDapAn.docx')
+    with open('/BangDapAn.docx', 'rb') as f: files['BangDapAn.docx'] = base64.b64encode(f.read()).decode('utf-8')
+    return json.dumps(files)
 </script>
     <div id="trial-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
         <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
@@ -1674,11 +2008,17 @@ def generate_shuffled(options_json):
         reader.onload = function(e) {
             const base64 = e.target.result.split(',')[1];
             try {
-                const parseDocxFn = window.pyodide.globals.get('parse_docx');
+                const vnMode = isVn();
+                const parseDocxFn = window.pyodide.globals.get(vnMode ? 'parse_docx_vn' : 'parse_docx');
                 const partsStr = parseDocxFn(base64);
                 parseDocxFn.destroy();
                 const parts = JSON.parse(partsStr);
-                renderPartsUI(parts);
+                if (vnMode) {
+                    if (!parts.length) throw new Error('Không tìm thấy "PHẦN I/II/III" hoặc "Câu 1." trong đề.');
+                    renderPartsUIVn(parts);
+                    const need = document.getElementById('exam-mode').value === 'vn3' ? 3 : 2;
+                    if (parts.length !== need) showToast(`Nhận diện được ${parts.length} phần, mẫu Bộ cần ${need} phần. Hãy kiểm tra lại tiêu đề PHẦN trong đề.`, true);
+                } else renderPartsUI(parts);
                 document.getElementById('step2').classList.remove('opacity-50', 'pointer-events-none');
                 document.getElementById('step3').classList.remove('opacity-50', 'pointer-events-none');
                 showToast("Đã phân tích đề gốc thành công!");
@@ -1749,6 +2089,62 @@ def generate_shuffled(options_json):
             `;
         });
     }
+
+    // --- CHẾ ĐỘ MẪU ĐỀ BỘ GD&ĐT 2026 ---
+    const VN_SUBJECTS = {
+        vn3: [['Toán', 90], ['Vật lí', 50], ['Hóa học', 50], ['Sinh học', 50], ['Địa lí', 50]],
+        vn2: [['Lịch sử', 50], ['Giáo dục kinh tế và pháp luật', 50]]
+    };
+    const VN_HINT = {
+        vn3: 'Nhận diện PHẦN I (nhiều lựa chọn A–D), PHẦN II (Đúng/Sai, ý a–d), PHẦN III (trả lời ngắn). Mỗi phần đánh số lại từ Câu 1, thứ tự Phần I → II → III luôn cố định. Đáp án: gạch chân phương án/ý đúng; Phần III ghi dòng "Đáp án: …" dưới câu hỏi (không bắt buộc).',
+        vn2: 'Nhận diện PHẦN I (nhiều lựa chọn A–D) và PHẦN II (Đúng/Sai, ý a–d). Mỗi phần đánh số lại từ Câu 1, thứ tự các phần cố định. Đáp án: gạch chân phương án/ý đúng.'
+    };
+    function isVn() { return document.getElementById('exam-mode').value !== 'free'; }
+    function escHtml(t) { return String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+    function onModeChange() {
+        const mode = document.getElementById('exam-mode').value, vn = mode !== 'free';
+        document.getElementById('vn-extra').classList.toggle('hidden', !vn);
+        const cb = document.getElementById('cb-shuffle-parts');
+        cb.disabled = vn; if (vn) cb.checked = false;
+        if (vn) {
+            document.getElementById('vn-subject').innerHTML = VN_SUBJECTS[mode].map((s, i) => `<option value="${i}">${s[0]} (${s[1]} phút)</option>`).join('');
+            document.getElementById('vn-hint').textContent = VN_HINT[mode];
+            onSubjectChange();
+        }
+    }
+    function onSubjectChange() {
+        const mode = document.getElementById('exam-mode').value;
+        const s = VN_SUBJECTS[mode][parseInt(document.getElementById('vn-subject').value || '0', 10)];
+        document.getElementById('hdr-subject').value = 'Môn thi: ' + s[0].toUpperCase();
+        document.getElementById('hdr-duration').value = `Thời gian làm bài: ${s[1]} phút, không kể thời gian phát đề`;
+        updateHeaderPreview();
+    }
+    function fillMinistryHeader() {
+        document.getElementById('hdr-governing').value = 'BỘ GIÁO DỤC VÀ ĐÀO TẠO';
+        document.getElementById('hdr-school').value = '';
+        document.getElementById('hdr-exam-type').value = 'ĐỀ THI CHÍNH THỨC';
+        document.getElementById('hdr-exam-name').value = 'KỲ THI TỐT NGHIỆP TRUNG HỌC PHỔ THÔNG NĂM 2026';
+        updateHeaderPreview();
+        showToast('Đã điền tiêu đề theo mẫu Bộ GD&ĐT.');
+    }
+    function vnToggle(id, label, checked) {
+        return `<label class="flex items-center space-x-2 cursor-pointer"><div class="relative"><input type="checkbox" id="${id}" ${checked ? 'checked' : ''} class="sr-only toggle-checkbox"><div class="block bg-slate-200 w-8 h-5 rounded-full toggle-label transition"></div><div class="dot absolute left-1 top-1 bg-white w-3 h-3 rounded-full transition transform toggle-dot"></div></div><span class="text-sm font-medium text-slate-700">${label}</span></label>`;
+    }
+    function renderPartsUIVn(parts) {
+        const c = document.getElementById('parts-container'); c.innerHTML = ''; window.currentParts = parts;
+        const tag = {mc: 'Nhiều phương án', tf: 'Đúng / Sai', sa: 'Trả lời ngắn'};
+        parts.forEach((p, i) => {
+            c.innerHTML += `<div class="mb-4 bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+                <h3 class="font-bold text-slate-800 text-sm uppercase tracking-wide">Phần ${['I', 'II', 'III'][i] || i + 1} · ${tag[p.kind] || ''} · ${p.n} câu</h3>
+                <p class="text-sm text-slate-500 line-clamp-2 italic mt-1 bg-slate-50 p-2 rounded border-l-2 border-slate-300">"${escHtml(p.title)}"</p>
+                ${p.groups ? `<p class="text-[11px] text-amber-700 mt-1">Có ${p.groups} cụm câu dùng chung dữ kiện – được giữ liền nhau khi đảo.</p>` : ''}
+                <div class="flex items-center space-x-6 border-t border-slate-100 pt-3 mt-3">
+                    ${p.kind === 'sa' ? '' : vnToggle('opt-opts-' + i, p.kind === 'tf' ? 'Xáo ý (a, b, c, d)' : 'Xáo phương án (A, B, C, D)', p.kind === 'mc')}
+                    ${vnToggle('opt-order-' + i, 'Đảo câu (Nội bộ)', true)}
+                </div></div>`;
+        });
+    }
+    // ---------------------------------
 
     // --- QUẢN LÝ SỐ LƯỢT DÙNG THỬ ---
     let TRIAL_LIMIT = 10;
@@ -1863,7 +2259,7 @@ def generate_shuffled(options_json):
                 num_ma_de: numMade,
                 start_code: startCode,
                 insert_header: document.getElementById('insert-header').checked,
-                shuffle_parts: document.getElementById('cb-shuffle-parts').checked,
+                shuffle_parts: !isVn() && document.getElementById('cb-shuffle-parts').checked,
                 ministry_header: {
                     enabled: document.getElementById('use-ministry-header').checked,
                     governing: document.getElementById('hdr-governing').value,
@@ -1898,15 +2294,15 @@ def generate_shuffled(options_json):
             
             (window.currentParts || []).forEach((part, idx) => {
                 opts[idx] = {
-                    shuffle_options: document.getElementById(`opt-opts-${idx}`).checked,
-                    shuffle_order: document.getElementById(`opt-order-${idx}`).checked
+                    shuffle_options: !!(document.getElementById(`opt-opts-${idx}`) || {}).checked,
+                    shuffle_order: !!(document.getElementById(`opt-order-${idx}`) || {}).checked
                 };
             });
             
             const optsJson = JSON.stringify(opts);
             await new Promise(r => setTimeout(r, 100)); 
             
-            const generateShuffledFn = window.pyodide.globals.get('generate_shuffled');
+            const generateShuffledFn = window.pyodide.globals.get(isVn() ? 'generate_shuffled_vn' : 'generate_shuffled');
             const resultStr = generateShuffledFn(optsJson);
             generateShuffledFn.destroy();
             const resultFiles = JSON.parse(resultStr);
