@@ -2324,5 +2324,106 @@ def generate_shuffled_vn(options_json):
         }
     }
 </script>
+
+<!-- ===== Kích hoạt bản quyền theo máy ===== -->
+<div id="lic-gate" style="position:fixed;inset:0;z-index:2147483647;background:rgba(15,23,42,.97);display:flex;align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;">
+  <div style="background:#fff;color:#1e293b;border-radius:14px;padding:20px;max-width:460px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.4);">
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px;">🔑 Kích hoạt bản quyền</div>
+    <div style="font-size:.85rem;color:#64748b;line-height:1.5;">Gửi <b>Mã máy</b> bên dưới cho người cung cấp phần mềm để nhận mã kích hoạt, rồi dán mã vào ô phía dưới.</div>
+    <div style="font-size:.8rem;color:#64748b;margin:12px 0 4px;">Mã máy của bạn</div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div id="lic-dev" style="flex:1;font-family:ui-monospace,Consolas,monospace;font-size:1rem;font-weight:700;background:#f1f5f9;border:1px dashed #cbd5e1;border-radius:8px;padding:8px 10px;user-select:all;">------------</div>
+      <button id="lic-copy" type="button" style="padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#1e293b;cursor:pointer;font-size:.8rem;">📋 Chép</button>
+    </div>
+    <div style="font-size:.8rem;color:#64748b;margin:12px 0 4px;">Mã kích hoạt</div>
+    <textarea id="lic-code" rows="3" spellcheck="false" placeholder="Dán mã kích hoạt vào đây" style="width:100%;box-sizing:border-box;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace,Consolas,monospace;font-size:.78rem;color:#1e293b;background:#fff;"></textarea>
+    <button id="lic-go" type="button" style="margin-top:10px;padding:9px 16px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-weight:600;cursor:pointer;">Kích hoạt</button>
+    <div id="lic-msg" style="font-size:.85rem;margin-top:8px;min-height:1.2em;"></div>
+  </div>
+</div>
+<div id="lic-badge" style="position:fixed;left:8px;bottom:6px;z-index:40;font-size:11px;color:#64748b;opacity:.7;pointer-events:none;"></div>
+<script>
+(function () {
+  // ==LIC-CORE-START==
+  const LIC_SALT = 'DAODE-2026|';   // phải trùng với công cụ tạo mã
+  const LIC_PUBLIC_JWK = {"kty":"EC","crv":"P-256","x":"1Gg5CfTW2oTzUxBOYVO6ug3u3MBrXot9mM4oBllQENQ","y":"YDO9I1HHEKToYy-t-B15jbB_vAbsyWYBYBBPwZh_BFk"};
+  const LIC_ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const DAY_MS = 86400000, VN_OFFSET_MS = 7 * 3600000;
+  function todayIndex() { return Math.floor((Date.now() + VN_OFFSET_MS) / DAY_MS); }
+  function fmtDayIndex(d) {
+    const t = new Date(d * DAY_MS), p = (n) => String(n).padStart(2, '0');
+    return p(t.getUTCDate()) + '/' + p(t.getUTCMonth() + 1) + '/' + t.getUTCFullYear();
+  }
+  function b64uToBytes(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = atob(s), u = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    return u;
+  }
+  // Mã = <ngày hết hạn, hệ 36>.<chữ ký ECDSA P-256 của "SALT + MãMáy + | + ngày hết hạn">
+  async function verifyCode(code, deviceId) {
+    const parts = String(code || '').trim().split('.');
+    if (parts.length !== 2 || !parts[0] || !parts[1]) return { ok: false, why: 'format' };
+    const exp = parseInt(parts[0], 36);
+    if (!isFinite(exp)) return { ok: false, why: 'format' };
+    let ok = false;
+    try {
+      const key = await crypto.subtle.importKey('jwk', LIC_PUBLIC_JWK, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+      ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, b64uToBytes(parts[1]), new TextEncoder().encode(LIC_SALT + deviceId + '|' + parts[0]));
+    } catch (e) { ok = false; }
+    if (!ok) return { ok: false, why: 'sig' };
+    if (exp < todayIndex()) return { ok: false, why: 'expired', exp: exp };
+    return { ok: true, exp: exp };
+  }
+  // ==LIC-CORE-END==
+
+  const DEV_KEY = 'daode_device_id', CODE_KEY = 'daode_lic_code';
+  const $ = (id) => document.getElementById(id);
+  const fmtId = (id) => id.replace(/(.{4})(?=.)/g, '$1-');
+  function getDeviceId() {
+    let id = '';
+    try { id = localStorage.getItem(DEV_KEY) || ''; } catch (e) {}
+    if (id.length !== 12 || ![...id].every(c => LIC_ID_CHARS.includes(c))) {
+      id = '';
+      for (const b of crypto.getRandomValues(new Uint8Array(12))) id += LIC_ID_CHARS[b % 32];
+      try { localStorage.setItem(DEV_KEY, id); } catch (e) {}
+    }
+    return id;
+  }
+  const say = (t, ok) => { $('lic-msg').style.color = ok ? '#16a34a' : '#dc2626'; $('lic-msg').textContent = t; };
+  function unlock(exp) { $('lic-gate').style.display = 'none'; $('lic-badge').textContent = '🔑 Bản quyền đến hết ngày ' + fmtDayIndex(exp); }
+  function whyText(r) {
+    return r.why === 'format' ? '❌ Mã không đúng định dạng.'
+      : r.why === 'expired' ? '❌ Mã đã hết hạn từ ngày ' + fmtDayIndex(r.exp) + '. Hãy xin mã mới.'
+      : '❌ Mã không hợp lệ hoặc không dành cho máy này.';
+  }
+
+  async function boot() {
+    if (!(window.crypto && crypto.subtle)) { $('lic-dev').textContent = '(không hỗ trợ)'; say('❌ Trình duyệt này không hỗ trợ kiểm tra mã. Hãy mở bằng Chrome hoặc Edge.', false); return; }
+    const dev = getDeviceId();
+    $('lic-dev').textContent = fmtId(dev);
+    $('lic-copy').onclick = async () => {
+      try { await navigator.clipboard.writeText(fmtId(dev)); } catch (e) { const r = document.createRange(); r.selectNodeContents($('lic-dev')); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand('copy'); }
+      $('lic-copy').textContent = '✅ Đã chép'; setTimeout(() => { $('lic-copy').textContent = '📋 Chép'; }, 1200);
+    };
+    $('lic-go').onclick = async () => {
+      const code = $('lic-code').value.trim();
+      const r = await verifyCode(code, dev);
+      if (!r.ok) { say(whyText(r), false); return; }
+      try { localStorage.setItem(CODE_KEY, code); } catch (e) {}
+      unlock(r.exp);
+    };
+    let saved = '';
+    try { saved = localStorage.getItem(CODE_KEY) || ''; } catch (e) {}
+    if (saved) {
+      const r = await verifyCode(saved, dev);
+      if (r.ok) { unlock(r.exp); return; }
+      say(whyText(r), false);
+    }
+  }
+  boot();
+})();
+</script>
 </body>
 </html>
