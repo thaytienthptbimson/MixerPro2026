@@ -2149,7 +2149,6 @@ def generate_shuffled_vn(options_json):
 
     // --- QUẢN LÝ SỐ LƯỢT DÙNG THỬ ---
     let TRIAL_LIMIT = 10;
-    const TRIAL_PASSWORD = "tienhuong28011981@";
     const TRIAL_COUNT_KEY = "dmd_trial_count";
     const LIMIT_KEY = "dmd_limit_count";
 
@@ -2291,15 +2290,6 @@ def generate_shuffled_vn(options_json):
     document.getElementById('trial-confirm-btn').addEventListener('click', async function() {
         const input = document.getElementById('trial-password-input').value.trim();
         const err = document.getElementById('trial-password-error');
-        if (input === TRIAL_PASSWORD) {
-            let currentLimit = getLimitCount();
-            safeSetStorage(LIMIT_KEY, (currentLimit + 10).toString());
-            hideTrialModal();
-            updateTrialUI();
-            showToast("Mật khẩu chính xác. Bạn đã được cộng thêm 10 lượt dùng thử.");
-            shuffleAndExport();
-            return;
-        }
         let r = { ok: false, why: 'sig' };
         try { r = await licVerify(input, licDeviceId()); } catch (e) {}
         if (r.ok) {
