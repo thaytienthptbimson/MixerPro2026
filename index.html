@@ -1888,10 +1888,9 @@ def generate_shuffled_vn(options_json):
     <div id="trial-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
         <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-sm">
             <h3 class="text-lg font-bold text-slate-800 mb-2">Đã hết lượt dùng thử</h3>
-            <p class="text-sm text-slate-600 mb-3">Bạn đã sử dụng hết lượt dùng thử miễn phí. Vui lòng gửi <b>Mã máy</b> dưới đây cho số ĐT 0943930787 để nhận mã kích hoạt, rồi dán mã vào ô bên dưới.</p>
-            <div class="flex gap-2 items-center mb-3"><div id="lic-dev" class="flex-1 font-mono font-bold text-sm bg-slate-100 border border-dashed border-slate-300 rounded-lg px-3 py-2 select-all">------------</div><button id="lic-copy" type="button" class="px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs hover:bg-slate-100">📋 Chép</button></div>
-            <input type="text" autocomplete="off" spellcheck="false" id="trial-password-input" placeholder="Dán mã kích hoạt" class="w-full border border-slate-300 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
-            <p id="trial-password-error" class="text-red-500 text-sm mb-3 hidden">Mã không hợp lệ.</p>
+            <p class="text-sm text-slate-600 mb-4">Bạn đã sử dụng hết 10 lượt dùng thử miễn phí. Vui lòng liên hệ số ĐT 0943930787 để lấy mật khẩu sử dụng vĩnh viễn, rồi nhập vào ô bên dưới.</p>
+            <input type="password" id="trial-password-input" placeholder="Nhập mật khẩu" class="w-full border border-slate-300 rounded-lg px-3 py-2 mb-2 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <p id="trial-password-error" class="text-red-500 text-sm mb-3 hidden">Mật khẩu không đúng. Vui lòng thử lại.</p>
             <div class="flex justify-end gap-2 mt-2">
                 <button id="trial-cancel-btn" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-medium">Hủy</button>
                 <button id="trial-confirm-btn" class="px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 text-sm font-medium">Xác nhận</button>
@@ -2148,9 +2147,10 @@ def generate_shuffled_vn(options_json):
     // ---------------------------------
 
     // --- QUẢN LÝ SỐ LƯỢT DÙNG THỬ ---
-    let TRIAL_LIMIT = 10;
+    const TRIAL_LIMIT = 10;
+    const TRIAL_PASS_HASH = "b434097bf1e4f34bb7a2d637443b6ac2a7faa2d2e00f152d449091d8f41ced3c";   // SHA-256 của mật khẩu mở khóa vĩnh viễn
     const TRIAL_COUNT_KEY = "dmd_trial_count";
-    const LIMIT_KEY = "dmd_limit_count";
+    const UNLOCK_KEY = "dmd_unlocked";
 
     function safeGetStorage(key, fallback) {
         try {
@@ -2170,18 +2170,18 @@ def generate_shuffled_vn(options_json):
     function getTrialCount() {
         return parseInt(safeGetStorage(TRIAL_COUNT_KEY, '0'), 10) || 0;
     }
-    
-    function getLimitCount() {
-        const storedLimit = safeGetStorage(LIMIT_KEY, null);
-        if (storedLimit === null) {
-            safeSetStorage(LIMIT_KEY, TRIAL_LIMIT.toString());
-            return TRIAL_LIMIT;
-        }
-        return parseInt(storedLimit, 10);
+
+    function isUnlocked() {
+        return safeGetStorage(UNLOCK_KEY, '') === TRIAL_PASS_HASH;
+    }
+
+    async function sha256Hex(text) {
+        const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
     function markUsageIfNeeded() {
-        if (licActive()) return;
+        if (isUnlocked()) return;
         safeSetStorage(TRIAL_COUNT_KEY, String(getTrialCount() + 1));
         updateTrialUI();
     }
@@ -2189,11 +2189,9 @@ def generate_shuffled_vn(options_json):
     function updateTrialUI() {
         const el = document.getElementById('trial-status');
         if (!el) return;
-        if (licActive()) { el.textContent = '🔑 Đã kích hoạt — hiệu lực đến hết ngày ' + licFmt(licExp) + '.'; return; }
-        const limit = getLimitCount();
-        const count = getTrialCount();
-        const remaining = Math.max(0, limit - count);
-        el.textContent = `Còn ${remaining}/${limit} lượt dùng thử miễn phí.`;
+        if (isUnlocked()) { el.textContent = '✅ Đã mở khóa sử dụng vĩnh viễn.'; return; }
+        const remaining = Math.max(0, TRIAL_LIMIT - getTrialCount());
+        el.textContent = `Còn ${remaining}/${TRIAL_LIMIT} lượt dùng thử miễn phí.`;
     }
 
     function showTrialModal() {
@@ -2211,97 +2209,24 @@ def generate_shuffled_vn(options_json):
         modal.classList.remove('flex');
     }
 
-    // --- KÍCH HOẠT BẢN QUYỀN THEO MÁY ---
-    // ==LIC-CORE-START==
-    const LIC_SALT = 'DAODE-2026|';   // phải trùng với công cụ tạo mã
-    const LIC_PUBLIC_JWK = {"kty":"EC","crv":"P-256","x":"1Gg5CfTW2oTzUxBOYVO6ug3u3MBrXot9mM4oBllQENQ","y":"YDO9I1HHEKToYy-t-B15jbB_vAbsyWYBYBBPwZh_BFk"};
-    const LIC_ID_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const LIC_DAY_MS = 86400000, LIC_VN_OFFSET_MS = 7 * 3600000;
-    function licToday() { return Math.floor((Date.now() + LIC_VN_OFFSET_MS) / LIC_DAY_MS); }
-    function licFmt(d) {
-        const t = new Date(d * LIC_DAY_MS), p = (n) => String(n).padStart(2, '0');
-        return p(t.getUTCDate()) + '/' + p(t.getUTCMonth() + 1) + '/' + t.getUTCFullYear();
-    }
-    function licB64uToBytes(s) {
-        s = s.replace(/-/g, '+').replace(/_/g, '/');
-        while (s.length % 4) s += '=';
-        const bin = atob(s), u = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
-        return u;
-    }
-    // Mã = <ngày hết hạn, hệ 36>.<chữ ký ECDSA P-256 của "SALT + MãMáy + | + ngày hết hạn">
-    async function licVerify(code, deviceId) {
-        const parts = String(code || '').trim().split('.');
-        if (parts.length !== 2 || !parts[0] || !parts[1]) return { ok: false, why: 'format' };
-        const exp = parseInt(parts[0], 36);
-        if (!isFinite(exp)) return { ok: false, why: 'format' };
-        let ok = false;
-        try {
-            const key = await crypto.subtle.importKey('jwk', LIC_PUBLIC_JWK, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
-            ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, licB64uToBytes(parts[1]), new TextEncoder().encode(LIC_SALT + deviceId + '|' + parts[0]));
-        } catch (e) { ok = false; }
-        if (!ok) return { ok: false, why: 'sig' };
-        if (exp < licToday()) return { ok: false, why: 'expired', exp: exp };
-        return { ok: true, exp: exp };
-    }
-    // ==LIC-CORE-END==
-    const LIC_DEV_KEY = 'daode_device_id', LIC_CODE_KEY = 'daode_lic_code';
-    var licExp;
-    function licActive() { return licExp >= 0 && licExp >= licToday(); }
-    function licFmtId(id) { return id.replace(/(.{4})(?=.)/g, '$1-'); }
-    function licDeviceId() {
-        let id = safeGetStorage(LIC_DEV_KEY, '');
-        if (id.length !== 12 || ![...id].every(c => LIC_ID_CHARS.includes(c))) {
-            id = '';
-            for (const b of crypto.getRandomValues(new Uint8Array(12))) id += LIC_ID_CHARS[b % 32];
-            safeSetStorage(LIC_DEV_KEY, id);
-        }
-        return id;
-    }
-    function licWhy(r) {
-        return r.why === 'format' ? 'Mã không đúng định dạng.'
-            : r.why === 'expired' ? 'Mã đã hết hạn từ ngày ' + licFmt(r.exp) + '. Hãy xin mã mới.'
-            : 'Mã không hợp lệ hoặc không dành cho máy này.';
-    }
-    (async function licInit() {
-        const devEl = document.getElementById('lic-dev');
-        if (!(window.crypto && crypto.subtle)) { if (devEl) devEl.textContent = '(trình duyệt không hỗ trợ)'; return; }
-        try {
-            const dev = licDeviceId();
-            if (devEl) devEl.textContent = licFmtId(dev);
-            const cp = document.getElementById('lic-copy');
-            if (cp) cp.onclick = async function() {
-                try { await navigator.clipboard.writeText(licFmtId(dev)); } catch (e) {}
-                cp.textContent = '✅ Đã chép'; setTimeout(() => { cp.textContent = '📋 Chép'; }, 1200);
-            };
-            const saved = safeGetStorage(LIC_CODE_KEY, '');
-            if (saved) { const r = await licVerify(saved, dev); if (r.ok) { licExp = r.exp; updateTrialUI(); } }
-        } catch (e) {}
-    })();
-    // ---------------------------------
-
     function checkTrialAccess() {
-        if (licActive()) return true;
-        if (getTrialCount() < getLimitCount()) return true;
+        if (isUnlocked() || getTrialCount() < TRIAL_LIMIT) return true;
         showTrialModal();
         return false;
     }
 
     document.getElementById('trial-confirm-btn').addEventListener('click', async function() {
         const input = document.getElementById('trial-password-input').value.trim();
-        const err = document.getElementById('trial-password-error');
-        let r = { ok: false, why: 'sig' };
-        try { r = await licVerify(input, licDeviceId()); } catch (e) {}
-        if (r.ok) {
-            safeSetStorage(LIC_CODE_KEY, input);
-            licExp = r.exp;
+        let ok = false;
+        try { ok = (await sha256Hex(input)) === TRIAL_PASS_HASH; } catch (e) {}
+        if (ok) {
+            safeSetStorage(UNLOCK_KEY, TRIAL_PASS_HASH);
             hideTrialModal();
             updateTrialUI();
-            showToast("Kích hoạt thành công, hiệu lực đến hết ngày " + licFmt(r.exp) + ".");
+            showToast("Mật khẩu chính xác. Bạn đã được sử dụng vĩnh viễn.");
             shuffleAndExport();
         } else {
-            err.textContent = licWhy(r);
-            err.classList.remove('hidden');
+            document.getElementById('trial-password-error').classList.remove('hidden');
         }
     });
 
